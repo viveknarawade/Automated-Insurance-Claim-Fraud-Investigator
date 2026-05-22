@@ -28,17 +28,18 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Column(name = "full_name")
+    @Column(name = "full_name",nullable = false)
     private String fullName;
 
     @Column(nullable = true,name = "avatar_url")
     private String avatarUrl;
 
+    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private UserStatus status;
 
     @Column(name = "is_deleted")
-    private boolean deleted = false;
+    private boolean isDeleted = false;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -56,11 +57,11 @@ public class User {
     private Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id")
+    @JoinColumn(name = "tenant_id",nullable = false)
     private Tenant tenant;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id")
+    @JoinColumn(name = "role_id",nullable = false)
     private Role role;
 
     @PrePersist
