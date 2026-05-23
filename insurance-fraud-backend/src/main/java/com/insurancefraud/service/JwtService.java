@@ -1,9 +1,16 @@
 package com.insurancefraud.service;
 
+import com.insurancefraud.entity.User;
+
 public interface JwtService {
 
-    public String generateEmailVerificationToken(String email);
-    public String generateToken(String userId) ;
-    public String generateRefreshToken(String userId);
-    public String extractEmail(String token);
+    String generateEmailVerificationToken(User user);
+
+    String generateToken(User user);
+
+    String generateRefreshToken(User user);
+
+    Long extractUserId(String token);
+
+    String generatePasswordResetToken(User user);
 }

@@ -37,7 +37,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(email);
             helper.setSubject("Verify Your Account");
             String htmlContent = """
-                    <div style="font-family: Arial, sans-serif; padding: 20px;">                 
+                    <div style="font-family: Arial, sans-serif; padding: 20px;">
                         <h2>Welcome to ClaimShield AI 🚀</h2>
                         <p>
                             Please verify your email by clicking the button below:
@@ -71,6 +71,33 @@ public class EmailServiceImpl implements EmailService {
 
             throw new EmailSendFailedException(
                     "Unable to send verification email"
+            );
+        }
+    }
+
+    @Async("emailTaskExecutor")
+    @Override
+    public void sendPasswordResetEmail(String email,String token) {
+        try {
+            String link = "http://localhost:5500/reset-password.html?token="+ token;
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom("ClaimShield AI <" + sender + ">");
+            helper.setTo(email);
+            helper.setSubject("Reset Your Password");
+            String html = """
+            <h2>Password Reset</h2>
+            <p>Click below to reset password:</p>
+            <a href="%s">
+                Reset Password
+            </a>
+        """.formatted(link);
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("password reset email sent to {}", email);
+        } catch (Exception e) {
+            throw new EmailSendFailedException(
+                    "Unable to send reset email"
             );
         }
     }

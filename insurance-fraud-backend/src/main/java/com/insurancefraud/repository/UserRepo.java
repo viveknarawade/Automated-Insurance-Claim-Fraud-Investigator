@@ -1,14 +1,35 @@
 package com.insurancefraud.repository;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.data.jpa.repository.JpaRepository;
 import com.insurancefraud.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-public interface UserRepo extends JpaRepository<User,Long> {
-    boolean existsByEmail(@NotBlank(message = "Email is required") @Email(message = "Invalid email format") String email);
+public interface UserRepo extends JpaRepository<User, Long> {
+
+    boolean existsByEmail(String email);
 
     Optional<User> findByEmail(String email);
+
+    @Query("""
+        SELECT u FROM User u
+        JOIN FETCH u.role
+        JOIN FETCH u.tenant
+        WHERE u.email = :email
+    """)
+    Optional<User> findByEmailWithRoleAndTenant(
+            @Param("email") String email
+    );
+
+    @Query("""
+        SELECT u FROM User u
+        JOIN FETCH u.role
+        JOIN FETCH u.tenant
+        WHERE u.userId = :userId
+    """)
+    Optional<User> findByIdWithRoleAndTenant(
+            @Param("userId") Long userId
+    );
 }
