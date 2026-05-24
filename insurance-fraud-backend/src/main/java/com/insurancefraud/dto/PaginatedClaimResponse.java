@@ -12,7 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class PaginatedClaimResponse {
-    private List<ClaimResponseDto> content;
+    private List<ClaimSummaryResponseDto> content;
     private long totalElements;
     private int totalPages;
     private int pageNo;

@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
-public class ClaimResponseDto {
+public class ClaimSummaryResponseDto {
 
     private Long claimId;
 

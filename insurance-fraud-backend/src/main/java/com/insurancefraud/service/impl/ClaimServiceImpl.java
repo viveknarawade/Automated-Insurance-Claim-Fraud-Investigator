@@ -1,9 +1,11 @@
 package com.insurancefraud.service.impl;
 
+import com.insurancefraud.dto.ClaimDetailResponseDto;
 import com.insurancefraud.dto.ClaimRequestDto;
-import com.insurancefraud.dto.ClaimResponseDto;
+import com.insurancefraud.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.dto.PaginatedClaimResponse;
 import com.insurancefraud.entity.*;
+import com.insurancefraud.exception.ResourceNotFoundException;
 import com.insurancefraud.exception.UserNotFoundException;
 import com.insurancefraud.repository.ClaimRepo;
 import com.insurancefraud.repository.UserRepo;
@@ -40,7 +42,7 @@ public class ClaimServiceImpl implements ClaimService {
 
     @Transactional
     @Override
-    public ClaimResponseDto createClaim(ClaimRequestDto requestDto) {
+    public ClaimSummaryResponseDto createClaim(ClaimRequestDto requestDto) {
         User currentUser = currentUserService.getCurrentActiveUser();
 
         User user = userRepo.findById(currentUser.getUserId())
@@ -57,27 +59,19 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setClaimStatus(ClaimStatus.PENDING);
         claim = claimRepo.save(claim);
         log.info("Claim created with ID: {}", claim.getClaimId());
-        return mapper.map(claim, ClaimResponseDto.class);
+        return mapper.map(claim, ClaimSummaryResponseDto.class);
 
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PaginatedClaimResponse getClaimsForCurrentUser(
-            int pageNumber,
-            int pageSize,
-            String sortBy,
-            String sortDir
-    ) {
+    public PaginatedClaimResponse getClaimsForCurrentUser(int pageNumber, int pageSize, ClaimSortField sortBy, String sortDir) {
         User currentUser =
                 currentUserService.getCurrentActiveUser();
 
         User user = userRepo.findById(currentUser.getUserId())
-                .orElseThrow(() ->
-                        new UserNotFoundException(
-                                "User not found"
-                        )
-                );
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
         // PAGE SIZE PROTECTION
         if (pageSize > 50) {
             pageSize = 50;
@@ -85,30 +79,23 @@ public class ClaimServiceImpl implements ClaimService {
         if (pageSize < 1) {
             pageSize = 10;
         }
-        // VALID SORT FIELDS
-        List<String> allowedSortFields = List.of(
-                "createdAt",
-                "claimAmount",
-                "incidentDate",
-                "claimStatus"
-        );
-
-        if (!allowedSortFields.contains(sortBy)) {
-            sortBy = "createdAt";
-        }
 
         // SORT DIRECTION
-        Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        Sort sort =
+                sortDir.equalsIgnoreCase("ASC")
+                        ? Sort.by(sortBy.getFieldName()).ascending()
+                        : Sort.by(sortBy.getFieldName()).descending();
+
         Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
         Page<Claim> claimPages = claimRepo.findByUserAndIsDeletedFalse(user, pageable);
 
-        List<ClaimResponseDto> dtoList =
+        List<ClaimSummaryResponseDto> dtoList =
                 claimPages.getContent()
                         .stream()
                         .map(claim ->
                                 mapper.map(
                                         claim,
-                                        ClaimResponseDto.class
+                                        ClaimSummaryResponseDto.class
                                 )
                         )
                         .toList();
@@ -123,9 +110,23 @@ public class ClaimServiceImpl implements ClaimService {
         response.setFirst(claimPages.isFirst());
         response.setLast(claimPages.isLast());
         response.setSorted(claimPages.getSort().isSorted());
-        response.setSortBy(sortBy);
+        response.setSortBy(sortBy.name());
         response.setNextPage(claimPages.hasNext() ? (long) claimPages.getNumber() + 1 : null);
         response.setPreviousPage(claimPages.hasPrevious() ? (long) claimPages.getNumber() - 1 : null);
         return response;
+    }
+
+    @Override
+    public ClaimDetailResponseDto getClaimById(Long claimId) {
+        User currentUser = currentUserService.getCurrentActiveUser();
+
+        User user = userRepo.findById(currentUser.getUserId())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        Claim claim = claimRepo.findByUserAndClaimIdAndIsDeletedFalse(user, claimId)
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found with ID: " + claimId));
+
+        log.info("Retrieved claim with ID: {} for user {}", claimId, user.getEmail());
+        return mapper.map(claim, ClaimDetailResponseDto.class);
     }
 }
