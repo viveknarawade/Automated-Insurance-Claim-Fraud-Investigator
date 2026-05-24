@@ -2,6 +2,7 @@ package com.insurancefraud.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 @Entity
 public class Claim {
 
+    @Id
     @Column(name = "claim_id",nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long claimId;
@@ -58,10 +60,6 @@ public class Claim {
     private String incidentCity;
     @Column(name = "incident_state")
     private String incidentState;
-    @Column(name = "latitude",precision = 10,scale = 8)
-    private BigDecimal latitude;
-    @Column(name = "longitude",precision = 11,scale = 8)
-    private BigDecimal longitude;
 
     @Column(name = "review_notes",columnDefinition = "TEXT")
     private String reviewNotes;
@@ -82,10 +80,6 @@ public class Claim {
     public void  prePersist(){
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
-
-        if (this.claimStatus == null) {
-            this.claimStatus = ClaimStatus.PENDING;
-        }
     }
 
     @PreUpdate

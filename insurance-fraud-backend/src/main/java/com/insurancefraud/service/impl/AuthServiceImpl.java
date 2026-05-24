@@ -5,6 +5,7 @@ import com.insurancefraud.entity.*;
 import com.insurancefraud.exception.*;
 import com.insurancefraud.repository.*;
 import com.insurancefraud.service.AuthService;
+import com.insurancefraud.service.CurrentUserService;
 import com.insurancefraud.service.EmailService;
 import com.insurancefraud.service.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +14,6 @@ import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,6 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final RefreshTokenRepo refreshTokenRepo;
     private final AuthenticationManager authManager;
+    private final CurrentUserService currentUserService;
 
     // Register User and send Verification email
     @Override
@@ -169,22 +169,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void logout(LogoutRequestDto logoutDto) {
-
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        if (!(principal instanceof User)) {
-            throw new RuntimeException("Invalid authentication principal");
-        }
-
-        User currentUser = (User) principal;
-
+        User currentUser = currentUserService.getCurrentActiveUser();
         RefreshToken token = refreshTokenRepo
                 .findByToken(logoutDto.getRefreshToken())
                 .orElseThrow(() ->
@@ -197,14 +182,12 @@ public class AuthServiceImpl implements AuthService {
                     "You are not allowed to revoke this token"
             );
         }
-
         // CHECK REVOKED
         if (token.isRevoked()) {
             throw new TokenAlreadyRevokedException(
                     "Token already revoked"
             );
         }
-
         // CHECK EXPIRY
         if (token.getExpiresAt().isBefore(Instant.now())) {
             throw new TokenExpiredException(
@@ -213,13 +196,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         token.setRevoked(true);
-
         refreshTokenRepo.save(token);
-
-        log.info(
-                "User logged out successfully: {}",
-                currentUser.getEmail()
-        );
+        log.info("User logged out successfully: {}",  currentUser.getEmail() );
     }
 
     //resend email verification
@@ -241,54 +219,29 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void delete(DeleteRequestDto deleteDto) {
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        if (!(principal instanceof User)) {
-            throw new RuntimeException("Invalid authentication principal");
-        }
-
-        User currentUser = (User) principal;
-
+        User currentUser = currentUserService.getCurrentActiveUser();
         User user = userRepo.findById(currentUser.getUserId())
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-        if (user.isDeleted()) {
-            throw new AccountDeletedException("Account already deleted");
-        }
 
         // CHECK PASSWORD
         if (!encoder.matches(deleteDto.getPassword(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid password");
         }
-
         // REVOKE ALL REFRESH TOKENS
         List<RefreshToken> allTokens = refreshTokenRepo.findByUser(user);
-
         for (RefreshToken token : allTokens) {
             token.setRevoked(true);
         }
-
         refreshTokenRepo.saveAll(allTokens);
-
         // SOFT DELETE
         user.setEmail(
                 "deleted_" + user.getUserId() + "_" + user.getEmail()
         );
-
         user.setDeleted(true);
         user.setDeletedAt(Instant.now());
         user.setStatus(UserStatus.DELETED);
         user.setUpdatedAt(Instant.now());
-
         userRepo.save(user);
-
         log.info("Account deleted for user {}", user.getEmail());
     }
 

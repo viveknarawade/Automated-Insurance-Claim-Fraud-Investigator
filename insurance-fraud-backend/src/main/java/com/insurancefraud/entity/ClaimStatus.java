@@ -5,5 +5,6 @@ public enum ClaimStatus {
     UNDER_REVIEW,
     APPROVED,
     REJECTED,
-    CLOSED
+    CLOSED,
+
 }
