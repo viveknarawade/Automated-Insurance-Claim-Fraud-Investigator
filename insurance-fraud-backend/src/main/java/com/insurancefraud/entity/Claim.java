@@ -1,8 +1,10 @@
 package com.insurancefraud.entity;
+import com.insurancefraud.entity.enums.ClaimStatus;
+import com.insurancefraud.entity.enums.ClaimType;
+import com.insurancefraud.entity.enums.FraudStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.Instant;

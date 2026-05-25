@@ -1,6 +1,7 @@
 package com.insurancefraud.entity;
 
 
+import com.insurancefraud.entity.enums.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

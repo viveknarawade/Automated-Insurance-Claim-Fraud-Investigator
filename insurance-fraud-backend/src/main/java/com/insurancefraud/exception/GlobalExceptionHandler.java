@@ -11,6 +11,7 @@
     import org.springframework.web.bind.annotation.ExceptionHandler;
     import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+    import java.io.IOException;
     import java.time.LocalDateTime;
     import java.util.stream.Collectors;
 
@@ -169,14 +170,43 @@
             return buildErrorResponse(HttpStatus.NOT_FOUND, "Resource Not Found", ex.getMessage(), request);
         }
 
+        @ExceptionHandler(InvalidMimeTypeException.class)
+        public ResponseEntity<ApiError> handleInvalidMimeType(InvalidMimeTypeException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported Media Type", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(EmptyFileException.class)
+        public ResponseEntity<ApiError> handleEmptyFile(EmptyFileException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(UnauthorizedException.class)
+        public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(FileStorageException.class)
+        public ResponseEntity<ApiError> handleFileStorageException(FileStorageException ex, HttpServletRequest request) {
+            return buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Storage Error",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(InvalidFileException.class)
+        public ResponseEntity<ApiError> handleInvalidFile(InvalidFileException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        }
 
 
 
 
-
-
-
-
+        @ExceptionHandler(IOException.class)
+        public ResponseEntity<ApiError> handleIOException(IOException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "IO Error", ex.getMessage(), request);
+        }
 
 
 

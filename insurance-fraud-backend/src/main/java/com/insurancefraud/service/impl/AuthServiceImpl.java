@@ -2,6 +2,8 @@ package com.insurancefraud.service.impl;
 
 import com.insurancefraud.dto.*;
 import com.insurancefraud.entity.*;
+import com.insurancefraud.entity.enums.RoleCode;
+import com.insurancefraud.entity.enums.UserStatus;
 import com.insurancefraud.exception.*;
 import com.insurancefraud.repository.*;
 import com.insurancefraud.service.AuthService;

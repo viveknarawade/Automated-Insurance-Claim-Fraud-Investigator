@@ -4,7 +4,7 @@ import com.insurancefraud.dto.ClaimDetailResponseDto;
 import com.insurancefraud.dto.ClaimRequestDto;
 import com.insurancefraud.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.dto.PaginatedClaimResponse;
-import com.insurancefraud.entity.ClaimSortField;
+import com.insurancefraud.entity.enums.ClaimSortField;
 import com.insurancefraud.payload.ApiResponse;
 import com.insurancefraud.service.ClaimService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,7 +45,7 @@ public class ClaimController {
     public ResponseEntity<ApiResponse<PaginatedClaimResponse>> getMyClaims(
             @RequestParam(name = "pageNo", defaultValue = "0", required = false) int pageNumber,
             @RequestParam(name = "pageSize", defaultValue = "10", required = false) int pageSize,
-            @RequestParam(name = "sortBy", defaultValue = "createdAt", required = false) ClaimSortField sortBy,
+            @RequestParam(name = "sortBy", defaultValue = "CREATED_AT", required = false) ClaimSortField sortBy,
             @RequestParam(name = "sortDir", defaultValue = "DESC", required = false) String sortDir
     ) {
         PaginatedClaimResponse data =
@@ -56,7 +56,7 @@ public class ClaimController {
                         sortDir
                 );
 
-        ApiResponse<PaginatedClaimResponse> response =
+          ApiResponse<PaginatedClaimResponse> response =
                 new ApiResponse<>(
                         true,
                         "Claims retrieved successfully",

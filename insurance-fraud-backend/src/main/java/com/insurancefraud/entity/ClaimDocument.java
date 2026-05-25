@@ -1,11 +1,13 @@
 package com.insurancefraud.entity;
 
+import com.insurancefraud.entity.enums.DocumentStatus;
+import com.insurancefraud.entity.enums.DocumentType;
+import com.insurancefraud.entity.enums.StorageProvider;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Entity
 @Getter
@@ -14,9 +16,9 @@ import java.util.UUID;
 public class ClaimDocument {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "claim_doc_id", nullable = false)
-    private UUID claimDocId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "claim_doc_id")
+    private Long claimDocId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
@@ -30,37 +32,39 @@ public class ClaimDocument {
     @JoinColumn(name = "uploaded_by", nullable = false)
     private User uploadedBy;
 
-    @Column(name = "document_type", nullable = false)
     @Enumerated(EnumType.STRING)
+    @Column(name = "document_type", nullable = false)
     private DocumentType documentType;
 
-    @Column(name = "file_name", nullable = false, length = 255)
+    // INTERNAL GENERATED FILE NAME
+    @Column(name = "file_name", nullable = false)
     private String fileName;
 
-    @Column(name = "original_file_name", length = 255)
+    // USER ORIGINAL FILE NAME
+    @Column(name = "original_file_name", nullable = false)
     private String originalFileName;
 
     @Column(name = "file_url", nullable = false, columnDefinition = "TEXT")
     private String fileUrl;
 
-    @Column(name = "storage_provider")
     @Enumerated(EnumType.STRING)
+    @Column(name = "storage_provider", nullable = false)
     private StorageProvider storageProvider;
 
-    @Column(name = "mime_type", length = 100)
+    @Column(name = "mime_type", nullable = false)
     private String mimeType;
 
-    @Column(name = "file_size")
+    @Column(name = "file_size", nullable = false)
     private Long fileSize;
 
-    @Column(name = "document_status", nullable = false)
     @Enumerated(EnumType.STRING)
+    @Column(name = "document_status", nullable = false)
     private DocumentStatus documentStatus;
 
-    @Column(name = "uploaded_at", nullable = false)
-    private Instant uploadedAt;
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @Column(name = "is_deleted")
@@ -71,7 +75,7 @@ public class ClaimDocument {
 
     @PrePersist
     public void prePersist() {
-        this.uploadedAt = Instant.now();
+        this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
 
         if (this.documentStatus == null) {

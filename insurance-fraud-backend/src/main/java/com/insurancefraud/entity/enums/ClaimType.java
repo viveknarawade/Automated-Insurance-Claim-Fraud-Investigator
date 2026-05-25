@@ -1,4 +1,4 @@
-package com.insurancefraud.entity;
+package com.insurancefraud.entity.enums;
 
 public enum ClaimType {
     CAR,

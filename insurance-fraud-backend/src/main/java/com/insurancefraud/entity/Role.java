@@ -1,5 +1,6 @@
 package com.insurancefraud.entity;
 
+import com.insurancefraud.entity.enums.RoleCode;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

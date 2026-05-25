@@ -1,8 +1,8 @@
 package com.insurancefraud.dto;
 
-import com.insurancefraud.entity.ClaimStatus;
-import com.insurancefraud.entity.ClaimType;
-import com.insurancefraud.entity.FraudStatus;
+import com.insurancefraud.entity.enums.ClaimStatus;
+import com.insurancefraud.entity.enums.ClaimType;
+import com.insurancefraud.entity.enums.FraudStatus;
 import lombok.Getter;
 import lombok.Setter;
 
