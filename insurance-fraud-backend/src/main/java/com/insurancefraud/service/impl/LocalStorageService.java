@@ -1,7 +1,11 @@
 package com.insurancefraud.service.impl;
 
+import com.insurancefraud.exception.ResourceNotFoundException;
 import com.insurancefraud.service.StorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
@@ -9,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
 import java.nio.file.*;
 import java.time.LocalDate;
 
@@ -37,4 +42,19 @@ public class LocalStorageService implements StorageService {
         }
         return rootPath.relativize(filePath).toString();
     }
+
+    @Override
+    public Resource downloadFile(String fileUrl) {
+        try {
+            Path filePath = rootPath.resolve(fileUrl).normalize();
+            if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+                throw new ResourceNotFoundException("File not found");
+            }
+            return new UrlResource(filePath.toUri());
+        } catch (MalformedURLException e) {
+            throw new ResourceNotFoundException("Invalid file path");
+        }
+    }
+
+
 }

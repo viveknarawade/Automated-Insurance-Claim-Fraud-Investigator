@@ -9,19 +9,22 @@ import com.insurancefraud.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ClaimDocumentServiceImpl
-        implements ClaimDocumentService {
+public class ClaimDocumentServiceImpl implements ClaimDocumentService {
 
     private final CurrentUserService currentUserService;
     private final StorageService storageService;
@@ -32,26 +35,11 @@ public class ClaimDocumentServiceImpl
 
     @Transactional
     @Override
-    public ClaimDocumentsResponseDto uploadClaimDocument(
-            Long claimId,
-            MultipartFile file,
-            DocumentType documentType
-    ) {
-
+    public ClaimDocumentsResponseDto uploadClaimDocument(Long claimId,MultipartFile file,DocumentType documentType) {
         validateFile(file);
-        User currentUser = currentUserService.getCurrentActiveUser();
-        User user = userRepo.findById(currentUser.getUserId())
-                .orElseThrow(() ->
-                        new UserNotFoundException(
-                                "User not found"
-                        )
-                );
-
+        User user = currentUserService.getCurrentActiveUser();
         Claim claim = claimRepo.findByClaimIdAndIsDeletedFalse(claimId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                                        "Claim not found"
-                                )
-                        );
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
 
         if (!claim.getUser().getUserId().equals(user.getUserId())) {
             throw new UnauthorizedException("You cannot upload documents to this claim");
@@ -94,6 +82,78 @@ public class ClaimDocumentServiceImpl
         );
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimDocumentsResponseDto> getClaimDocumentsByClaimId(Long claimId) {
+
+        User user = currentUserService.getCurrentActiveUser();
+
+        Claim claim =
+                claimRepo.findByClaimIdAndIsDeletedFalse(claimId).orElseThrow(() ->
+                                new ResourceNotFoundException("Claim not found with ID: " + claimId));
+
+        if (!claim.getUser().getUserId().equals(user.getUserId())) {
+            throw new UnauthorizedException("You cannot access documents for this claim");
+        }
+
+        log.info("Retrieving documents for claim {}", claim.getClaimNumber());
+        List<ClaimDocument> claimDocuments = claimDocumentRepo.findByClaim_ClaimIdAndIsDeletedFalse(claimId);
+
+        return claimDocuments.stream()
+                .map(doc ->
+                        mapper.map(
+                                doc,
+                                ClaimDocumentsResponseDto.class
+                        )
+                )
+                .toList();
+    }
+
+    @Override
+    public ClaimDocument getClaimDocumentById(Long documentId) {
+        User user = currentUserService.getCurrentActiveUser();
+        return claimDocumentRepo.findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId).orElseThrow(() ->
+                new ResourceNotFoundException("Document not found with ID: " + documentId));
+    }
+
+    @Transactional
+    @Override
+    public void deleteClaimDocument(Long documentId) {
+        User user = currentUserService.getCurrentActiveUser();;
+        ClaimDocument document = claimDocumentRepo
+                        .findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        document.setDeleted(true);
+        document.setDeletedAt(Instant.now());
+        document.setDocumentStatus(DocumentStatus.DELETED);
+        document.setUpdatedAt(Instant.now());
+        claimDocumentRepo.save(document);
+        log.info("Document {} soft deleted by user {}", document.getOriginalFileName(), user.getEmail());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource downloadDocument(Long documentId) {
+
+        User user = currentUserService.getCurrentActiveUser();
+        ClaimDocument document = claimDocumentRepo
+                .findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        Resource resource;
+        try {
+            resource = storageService.downloadFile(document.getFileUrl());
+        } catch (Exception e) {
+            log.error("File download failed: {}", e.getMessage());
+            throw new FileStorageException("Failed to download file", e);
+        }
+        log.info("Document {} downloaded by user {}", document.getOriginalFileName(), user.getEmail());
+        return resource;
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new EmptyFileException("File is empty");
@@ -114,4 +174,5 @@ public class ClaimDocumentServiceImpl
         int lastDot = fileName.lastIndexOf('.');
         return lastDot == -1 ? "" : fileName.substring(lastDot + 1);
     }
+
 }
