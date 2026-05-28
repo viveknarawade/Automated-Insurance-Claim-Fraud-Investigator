@@ -3,6 +3,7 @@ package com.insurancefraud.investigator.dto;
 import com.insurancefraud.enums.ClaimStatus;
 import com.insurancefraud.enums.ClaimType;
 import com.insurancefraud.enums.FraudStatus;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,6 +12,7 @@ import java.time.Instant;
 
 @Setter
 @Getter
+@AllArgsConstructor
 public class InvestigatorClaimResponseDto {
         private Long claimId;
         private String claimNumber;

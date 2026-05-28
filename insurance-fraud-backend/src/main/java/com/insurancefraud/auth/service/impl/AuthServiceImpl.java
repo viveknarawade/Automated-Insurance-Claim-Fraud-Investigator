@@ -71,6 +71,8 @@ public class AuthServiceImpl implements AuthService {
                 encoder.encode(requestDto.getPassword())
         );
 
+
+
         newUser.setStatus(UserStatus.PENDING);
         newUser.setTenant(tenant);
         newUser.setRole(userRole);
@@ -167,6 +169,7 @@ public class AuthServiceImpl implements AuthService {
                 "User logged in email {} ",
                 userDto.getEmail()
         );
+        log.info("pass@123 = {}",   encoder.encode("pass@123"));
 
         return response;
     }
