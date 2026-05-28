@@ -10,7 +10,7 @@ import com.insurancefraud.entity.User;
 import com.insurancefraud.enums.ClaimStatus;
 import com.insurancefraud.enums.RoleCode;
 import com.insurancefraud.enums.UserStatus;
-import com.insurancefraud.repository.ClaimRepo;
+import com.insurancefraud.claim.repository.ClaimRepo;
 import com.insurancefraud.repository.UserRepo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
