@@ -1,11 +1,10 @@
 package com.insurancefraud.service.impl;
 
-import com.insurancefraud.exception.ResourceNotFoundException;
+import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 

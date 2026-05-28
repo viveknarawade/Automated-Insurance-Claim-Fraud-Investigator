@@ -1,9 +1,13 @@
 package com.insurancefraud.service.impl;
 
+import com.insurancefraud.common.exception.*;
+import com.insurancefraud.common.security.CurrentUserService;
 import com.insurancefraud.dto.ClaimDocumentsResponseDto;
 import com.insurancefraud.entity.*;
-import com.insurancefraud.entity.enums.*;
-import com.insurancefraud.exception.*;
+import com.insurancefraud.enums.DocumentStatus;
+import com.insurancefraud.enums.DocumentType;
+import com.insurancefraud.enums.StorageProvider;
+import com.insurancefraud.enums.SupportedDocumentType;
 import com.insurancefraud.repository.*;
 import com.insurancefraud.service.*;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +22,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -35,7 +38,7 @@ public class ClaimDocumentServiceImpl implements ClaimDocumentService {
 
     @Transactional
     @Override
-    public ClaimDocumentsResponseDto uploadClaimDocument(Long claimId,MultipartFile file,DocumentType documentType) {
+    public ClaimDocumentsResponseDto uploadClaimDocument(Long claimId, MultipartFile file, DocumentType documentType) {
         validateFile(file);
         User user = currentUserService.getCurrentActiveUser();
         Claim claim = claimRepo.findByClaimIdAndIsDeletedFalse(claimId)

@@ -1,8 +1,7 @@
 package com.insurancefraud.controller;
 
 import com.insurancefraud.dto.*;
-import com.insurancefraud.exception.ApiError;
-import com.insurancefraud.payload.ApiResponse;
+import com.insurancefraud.common.payload.ApiResponse;
 import com.insurancefraud.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;

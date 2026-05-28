@@ -1,6 +1,6 @@
 package com.insurancefraud.dto;
 
-import com.insurancefraud.entity.enums.ClaimType;
+import com.insurancefraud.enums.ClaimType;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;

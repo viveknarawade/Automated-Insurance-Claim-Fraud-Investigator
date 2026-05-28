@@ -1,7 +1,7 @@
 package com.insurancefraud.entity;
-import com.insurancefraud.entity.enums.ClaimStatus;
-import com.insurancefraud.entity.enums.ClaimType;
-import com.insurancefraud.entity.enums.FraudStatus;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +28,10 @@ public class Claim {
     @ManyToOne
     @JoinColumn(name = "user_id",nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_investigator_id")
+    private User assignedInvestigator;
 
     @Column(name = "claim_number",nullable = false,unique = true)
     private String claimNumber;

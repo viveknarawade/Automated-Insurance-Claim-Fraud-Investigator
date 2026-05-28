@@ -1,7 +1,7 @@
 package com.insurancefraud.entity;
 
 
-import com.insurancefraud.entity.enums.UserStatus;
+import com.insurancefraud.enums.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -56,6 +56,7 @@ public class User {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id",nullable = false)

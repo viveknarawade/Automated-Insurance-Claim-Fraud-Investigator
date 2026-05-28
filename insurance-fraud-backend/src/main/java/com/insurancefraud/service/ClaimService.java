@@ -5,7 +5,7 @@ import com.insurancefraud.dto.ClaimDetailResponseDto;
 import com.insurancefraud.dto.ClaimRequestDto;
 import com.insurancefraud.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.dto.PaginatedClaimResponse;
-import com.insurancefraud.entity.enums.ClaimSortField;
+import com.insurancefraud.enums.ClaimSortField;
 import jakarta.validation.Valid;
 
 public interface ClaimService {

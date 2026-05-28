@@ -2,10 +2,8 @@ package com.insurancefraud.controller;
 
 import com.insurancefraud.dto.ClaimDocumentsResponseDto;
 import com.insurancefraud.entity.ClaimDocument;
-import com.insurancefraud.entity.enums.DocumentType;
-import com.insurancefraud.exception.ResourceNotFoundException;
-import com.insurancefraud.payload.ApiResponse;
-import com.insurancefraud.repository.ClaimDocumentRepo;
+import com.insurancefraud.enums.DocumentType;
+import com.insurancefraud.common.payload.ApiResponse;
 import com.insurancefraud.service.ClaimDocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;

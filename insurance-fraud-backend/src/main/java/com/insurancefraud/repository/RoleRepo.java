@@ -1,7 +1,7 @@
 package com.insurancefraud.repository;
 
 import com.insurancefraud.entity.Role;
-import com.insurancefraud.entity.enums.RoleCode;
+import com.insurancefraud.enums.RoleCode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

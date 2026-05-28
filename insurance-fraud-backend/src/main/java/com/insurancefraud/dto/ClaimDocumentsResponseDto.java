@@ -1,7 +1,7 @@
 package com.insurancefraud.dto;
 
-import com.insurancefraud.entity.enums.DocumentStatus;
-import com.insurancefraud.entity.enums.DocumentType;
+import com.insurancefraud.enums.DocumentStatus;
+import com.insurancefraud.enums.DocumentType;
 import lombok.Getter;
 import lombok.Setter;
 

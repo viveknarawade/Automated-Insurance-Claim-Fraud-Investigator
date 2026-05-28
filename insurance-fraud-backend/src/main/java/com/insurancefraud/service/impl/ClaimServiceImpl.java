@@ -1,15 +1,16 @@
 package com.insurancefraud.service.impl;
 
+import com.insurancefraud.common.security.CurrentUserServiceImpl;
 import com.insurancefraud.dto.ClaimDetailResponseDto;
 import com.insurancefraud.dto.ClaimRequestDto;
 import com.insurancefraud.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.dto.PaginatedClaimResponse;
 import com.insurancefraud.entity.*;
-import com.insurancefraud.entity.enums.ClaimSortField;
-import com.insurancefraud.entity.enums.ClaimStatus;
-import com.insurancefraud.entity.enums.FraudStatus;
-import com.insurancefraud.exception.ResourceNotFoundException;
-import com.insurancefraud.exception.UserNotFoundException;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.common.exception.UserNotFoundException;
 import com.insurancefraud.repository.ClaimRepo;
 import com.insurancefraud.repository.UserRepo;
 import com.insurancefraud.service.ClaimService;

@@ -1,6 +1,6 @@
 package com.insurancefraud.service.impl;
 
-import com.insurancefraud.exception.EmailSendFailedException;
+import com.insurancefraud.common.exception.EmailSendFailedException;
 import com.insurancefraud.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
