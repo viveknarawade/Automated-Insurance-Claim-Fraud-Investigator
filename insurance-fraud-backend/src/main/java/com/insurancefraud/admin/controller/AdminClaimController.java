@@ -1,7 +1,6 @@
 package com.insurancefraud.admin.controller;
 
-import com.insurancefraud.admin.dto.AssignInvestigatorRequestDto;
-import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
+import com.insurancefraud.admin.dto.*;
 import com.insurancefraud.admin.service.AdminClaimService;
 import com.insurancefraud.common.payload.ApiResponse;
 import jakarta.validation.Valid;
@@ -43,7 +42,6 @@ public class AdminClaimController {
         );
     }
 
-
     @GetMapping("/investigators/workload")
     public ResponseEntity<ApiResponse<List<InvestigatorsWorkloadResDto>>> getInvestigatorsWorkload() {
 
@@ -60,4 +58,53 @@ public class AdminClaimController {
                 )
         );
     }
+
+    @PatchMapping("/claims/{claimId}/approve")
+    public ResponseEntity<ApiResponse<ClaimDecisionResponseDto>> approveClaim(
+            @PathVariable Long claimId,
+            @Valid @RequestBody ClaimDecisionRequestDto requestDto
+    ) {
+        ClaimDecisionResponseDto responseDto = adminClaimService.approveClaim(claimId, requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim approved successfully",
+                        200,
+                        Instant.now(),
+                        responseDto
+                )
+        );
+    }
+
+    @PatchMapping("/claims/{claimId}/reject")
+    public ResponseEntity<ApiResponse<ClaimDecisionResponseDto>> rejectClaim(
+            @PathVariable Long claimId,
+            @Valid @RequestBody ClaimDecisionRequestDto requestDto
+    ) {
+        ClaimDecisionResponseDto responseDto = adminClaimService.rejectClaim(claimId, requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim rejected successfully",
+                        200,
+                        Instant.now(),
+                        responseDto
+                )
+        );
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<ApiResponse<DashboardResponseDto>> getAdminDashboard() {
+        DashboardResponseDto dashboardData = adminClaimService.getAdminDashboard();
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Dashboard data retrieved successfully",
+                        200,
+                        Instant.now(),
+                        dashboardData
+                )
+        );
+    }
+
 }

@@ -39,4 +39,6 @@ public interface ClaimRepo extends JpaRepository<Claim, Long> {
     List<Claim> findByAssignedInvestigatorAndIsDeletedFalse(User investigator);
 
     Optional<Claim> findByClaimIdAndAssignedInvestigatorAndClaimStatusAndIsDeletedFalse(Long claimId, User investigator, ClaimStatus claimStatus);
+
+    Optional<Claim> findByClaimIdAndClaimStatusAndIsDeletedFalse(Long claimId, ClaimStatus claimStatus);
 }

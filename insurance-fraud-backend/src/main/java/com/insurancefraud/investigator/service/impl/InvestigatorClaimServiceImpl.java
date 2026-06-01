@@ -12,12 +12,9 @@ import com.insurancefraud.investigator.dto.InvestigatorClaimReviewResponseDto;
 import org.springframework.transaction.annotation.Transactional;
 import com.insurancefraud.investigator.dto.InvestigatorClaimResponseDto;
 import com.insurancefraud.investigator.service.InvestigatorClaimService;
-import com.insurancefraud.repository.UserRepo;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -32,6 +29,7 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
         this.currentUserService = currentUserService;
         this.claimRepo = claimRepo;
     }
+
 
     @Override
     @Transactional(readOnly = true)

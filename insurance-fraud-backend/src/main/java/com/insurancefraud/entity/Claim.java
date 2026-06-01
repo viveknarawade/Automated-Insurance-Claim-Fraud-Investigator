@@ -67,6 +67,9 @@ public class Claim {
     @Column(name = "incident_state")
     private String incidentState;
 
+    @Column(name = "decision_notes",columnDefinition = "TEXT")
+    private String decisionNotes;
+
     @Column(name = "review_notes",columnDefinition = "TEXT")
     private String reviewNotes;
 

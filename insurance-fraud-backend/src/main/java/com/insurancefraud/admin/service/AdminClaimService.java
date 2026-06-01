@@ -1,5 +1,8 @@
 package com.insurancefraud.admin.service;
 
+import com.insurancefraud.admin.dto.ClaimDecisionRequestDto;
+import com.insurancefraud.admin.dto.ClaimDecisionResponseDto;
+import com.insurancefraud.admin.dto.DashboardResponseDto;
 import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -10,4 +13,10 @@ public interface AdminClaimService {
     void assignInvestigatorToClaim(@Valid Long claimId, @NotNull(message = "Investigator ID cannot be null") Long investigatorId);
 
     List<InvestigatorsWorkloadResDto> getInvestigatorsWorkload();
+
+    ClaimDecisionResponseDto approveClaim(Long claimsId, ClaimDecisionRequestDto requestDto);
+
+    ClaimDecisionResponseDto rejectClaim(Long claimId, @Valid ClaimDecisionRequestDto requestDto);
+
+    DashboardResponseDto getAdminDashboard();
 }

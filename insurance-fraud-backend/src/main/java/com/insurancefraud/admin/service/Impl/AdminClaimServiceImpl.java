@@ -1,10 +1,13 @@
 package com.insurancefraud.admin.service.Impl;
 
+import com.insurancefraud.admin.dto.ClaimDecisionRequestDto;
+import com.insurancefraud.admin.dto.ClaimDecisionResponseDto;
 import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
 import com.insurancefraud.admin.service.AdminClaimService;
 import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.security.CurrentUserService;
 import com.insurancefraud.entity.Claim;
+import com.insurancefraud.enums.FraudStatus;
 import org.springframework.transaction.annotation.Transactional;
 import com.insurancefraud.entity.User;
 import com.insurancefraud.enums.ClaimStatus;
@@ -14,6 +17,8 @@ import com.insurancefraud.claim.repository.ClaimRepo;
 import com.insurancefraud.repository.UserRepo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -100,5 +105,87 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                       );
                 }
                 ).toList();
+    }
+
+    @Transactional
+    @Override
+    public ClaimDecisionResponseDto approveClaim(
+            Long claimId,
+            ClaimDecisionRequestDto requestDto
+    ) {
+
+        User admin = currentUserService.getCurrentActiveUser();
+
+        Claim claim =claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found or not under review"));
+
+        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
+            throw new IllegalStateException("Claim investigation not completed");
+        }
+        if (claim.getFraudStatus() == FraudStatus.CONFIRMED) {
+            throw new IllegalStateException("Fraudulent claims cannot be approved");
+        }
+        if (claim.getClaimStatus() == ClaimStatus.APPROVED) {
+            throw new IllegalStateException("Claim already approved");
+        }
+
+        claim.setDecisionNotes(requestDto.getDecisionNotes());
+        claim.setClaimStatus(ClaimStatus.APPROVED);
+        claimRepo.save(claim);
+
+        log.info(
+                "Admin {} approved claim {}",
+                admin.getEmail(),
+                claim.getClaimNumber()
+        );
+        return new ClaimDecisionResponseDto(
+                claim.getClaimId(),
+                claim.getClaimNumber(),
+                claim.getClaimStatus(),
+                claim.getDecisionNotes(),
+                claim.getFraudStatus(),
+                admin.getEmail(),
+                claim.getUpdatedAt()
+        );
+    }
+
+    @Transactional
+    @Override
+    public ClaimDecisionResponseDto rejectClaim(
+            Long claimId,
+            ClaimDecisionRequestDto requestDto
+    ) {
+        User admin = currentUserService.getCurrentActiveUser();
+        Claim claim =
+                claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Claim not found or not under review"));
+
+        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
+            throw new IllegalStateException("Claim investigation not completed");
+        }
+
+        if (claim.getClaimStatus() == ClaimStatus.REJECTED) {
+            throw new IllegalStateException("Claim already rejected");
+        }
+        claim.setDecisionNotes(requestDto.getDecisionNotes());
+        claim.setClaimStatus(ClaimStatus.REJECTED);
+        claimRepo.save(claim);
+
+        log.info(
+                "Admin {} rejected claim {}",
+                admin.getEmail(),
+                claim.getClaimNumber()
+        );
+
+        return new ClaimDecisionResponseDto(
+                claim.getClaimId(),
+                claim.getClaimNumber(),
+                claim.getClaimStatus(),
+                claim.getDecisionNotes(),
+                claim.getFraudStatus(),
+                admin.getEmail(),
+                claim.getUpdatedAt()
+        );
     }
 }
