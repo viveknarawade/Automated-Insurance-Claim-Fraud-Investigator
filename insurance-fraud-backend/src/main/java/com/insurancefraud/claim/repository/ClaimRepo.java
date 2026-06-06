@@ -4,6 +4,7 @@ import com.insurancefraud.entity.Claim;
 import com.insurancefraud.entity.Tenant;
 import com.insurancefraud.entity.User;
 import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -41,4 +42,12 @@ public interface ClaimRepo extends JpaRepository<Claim, Long> {
     Optional<Claim> findByClaimIdAndAssignedInvestigatorAndClaimStatusAndIsDeletedFalse(Long claimId, User investigator, ClaimStatus claimStatus);
 
     Optional<Claim> findByClaimIdAndClaimStatusAndIsDeletedFalse(Long claimId, ClaimStatus claimStatus);
+
+    Long countByTenantAndIsDeletedFalse(Tenant tenant);
+
+    Long countByTenantAndClaimStatusAndIsDeletedFalse(Tenant tenant, ClaimStatus claimStatus);
+
+    Long countByTenantAndFraudStatusAndIsDeletedFalse(Tenant tenant, FraudStatus fraudStatus);
+
+    List<Claim> findByTenant_TenantCodeAndIsDeletedFalseAndAssignedInvestigatorIsNull(String tenantCode);
 }

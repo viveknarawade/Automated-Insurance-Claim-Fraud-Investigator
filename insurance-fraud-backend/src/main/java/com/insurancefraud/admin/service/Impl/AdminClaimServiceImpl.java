@@ -2,7 +2,9 @@ package com.insurancefraud.admin.service.Impl;
 
 import com.insurancefraud.admin.dto.ClaimDecisionRequestDto;
 import com.insurancefraud.admin.dto.ClaimDecisionResponseDto;
+import com.insurancefraud.admin.dto.DashboardResponseDto;
 import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.admin.service.AdminClaimService;
 import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.security.CurrentUserService;
@@ -18,7 +20,6 @@ import com.insurancefraud.repository.UserRepo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -26,7 +27,7 @@ import java.util.List;
 public class AdminClaimServiceImpl implements AdminClaimService {
 
     private final CurrentUserService currentUserService;
-    private final UserRepo userRepo;;
+    private final UserRepo userRepo;
     private final ClaimRepo claimRepo;
 
     public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo) {
@@ -109,10 +110,7 @@ public class AdminClaimServiceImpl implements AdminClaimService {
 
     @Transactional
     @Override
-    public ClaimDecisionResponseDto approveClaim(
-            Long claimId,
-            ClaimDecisionRequestDto requestDto
-    ) {
+    public ClaimDecisionResponseDto approveClaim(Long claimId, ClaimDecisionRequestDto requestDto) {
 
         User admin = currentUserService.getCurrentActiveUser();
 
@@ -151,10 +149,7 @@ public class AdminClaimServiceImpl implements AdminClaimService {
 
     @Transactional
     @Override
-    public ClaimDecisionResponseDto rejectClaim(
-            Long claimId,
-            ClaimDecisionRequestDto requestDto
-    ) {
+    public ClaimDecisionResponseDto rejectClaim(Long claimId, ClaimDecisionRequestDto requestDto) {
         User admin = currentUserService.getCurrentActiveUser();
         Claim claim =
                 claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
@@ -188,4 +183,63 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                 claim.getUpdatedAt()
         );
     }
+
+    @Transactional(readOnly = true)
+    @Override
+    public DashboardResponseDto getAdminDashboard() {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        Long totalClaims = claimRepo.countByTenantAndIsDeletedFalse(admin.getTenant());
+        Long pendingClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.PENDING);
+        Long underReviewClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.UNDER_REVIEW);
+        Long approvedClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.APPROVED);
+        Long rejectedClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.REJECTED);
+        Long suspectedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.SUSPECTED);
+        Long confirmedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.CONFIRMED);
+        Long activeClaims =  pendingClaims + underReviewClaims;
+
+        log.info(
+                "Admin {} retrieved dashboard data for tenant {}",
+                admin.getEmail(),
+                admin.getTenant().getTenantCode()
+        );
+
+        return new DashboardResponseDto(
+                totalClaims,
+                pendingClaims,
+                approvedClaims,
+                rejectedClaims,
+                suspectedFraudClaims,
+                underReviewClaims,
+                confirmedFraudClaims,
+                activeClaims
+        );
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<ClaimSummaryResponseDto> getUnassignedClaimsForTenant() {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        String tenantCode = admin.getTenant().getTenantCode();
+        List<Claim> claims = claimRepo.findByTenant_TenantCodeAndIsDeletedFalseAndAssignedInvestigatorIsNull(tenantCode);
+
+        log.info("Admin {} requested unassigned claims for tenant {}. Returning {} claims",
+                admin.getEmail(), tenantCode, claims.size());
+
+        return claims.stream().map(c -> {
+            ClaimSummaryResponseDto dto = new ClaimSummaryResponseDto();
+            dto.setClaimId(c.getClaimId());
+            dto.setClaimNumber(c.getClaimNumber());
+            dto.setClaimType(c.getClaimType());
+            dto.setClaimAmount(c.getClaimAmount());
+            dto.setClaimStatus(c.getClaimStatus());
+            dto.setFraudStatus(c.getFraudStatus());
+            dto.setIncidentDate(c.getIncidentDate());
+            dto.setIncidentCity(c.getIncidentCity());
+            dto.setCreatedAt(c.getCreatedAt());
+            return dto;
+        }).toList();
+    }
 }
+

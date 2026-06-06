@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
 
 @RequestMapping("/api/v1/admin")
 @RestController
@@ -107,4 +108,12 @@ public class AdminClaimController {
         );
     }
 
+    @GetMapping("/claims/unassigned")
+    public ResponseEntity<ApiResponse<List<ClaimSummaryResponseDto>>> getUnassignedClaims() {
+        List<ClaimSummaryResponseDto> claims = adminClaimService.getUnassignedClaimsForTenant();
+        return ResponseEntity.ok(new ApiResponse<>(true, "Unassigned claims retrieved", 200, Instant.now(), claims));
+    }
+
 }
+
+

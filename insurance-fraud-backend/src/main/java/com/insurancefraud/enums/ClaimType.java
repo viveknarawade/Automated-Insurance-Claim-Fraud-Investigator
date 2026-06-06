@@ -4,5 +4,6 @@ public enum ClaimType {
     CAR,
     BIKE,
     TRUCK,
+     AUTO,
     OTHER
 }

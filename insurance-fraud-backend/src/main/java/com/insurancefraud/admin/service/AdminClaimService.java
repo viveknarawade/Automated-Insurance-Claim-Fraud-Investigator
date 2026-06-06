@@ -19,4 +19,8 @@ public interface AdminClaimService {
     ClaimDecisionResponseDto rejectClaim(Long claimId, @Valid ClaimDecisionRequestDto requestDto);
 
     DashboardResponseDto getAdminDashboard();
+    List<com.insurancefraud.claim.dto.ClaimSummaryResponseDto> getUnassignedClaimsForTenant();
 }
+
+
+
