@@ -50,4 +50,10 @@ public interface ClaimRepo extends JpaRepository<Claim, Long> {
     Long countByTenantAndFraudStatusAndIsDeletedFalse(Tenant tenant, FraudStatus fraudStatus);
 
     List<Claim> findByTenant_TenantCodeAndIsDeletedFalseAndAssignedInvestigatorIsNull(String tenantCode);
+
+
+    Page<Claim> findByTenant_TenantCodeAndIsDeletedFalse(
+            String tenantCode,
+            Pageable pageable
+    );
 }

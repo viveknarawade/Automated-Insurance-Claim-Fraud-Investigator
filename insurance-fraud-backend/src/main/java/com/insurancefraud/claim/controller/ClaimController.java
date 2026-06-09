@@ -43,10 +43,10 @@ public class ClaimController {
 
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<PaginatedClaimResponse>> getMyClaims(
-            @RequestParam(name = "pageNo", defaultValue = "0", required = false) int pageNumber,
-            @RequestParam(name = "pageSize", defaultValue = "10", required = false) int pageSize,
-            @RequestParam(name = "sortBy", defaultValue = "CREATED_AT", required = false) ClaimSortField sortBy,
-            @RequestParam(name = "sortDir", defaultValue = "DESC", required = false) String sortDir
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
     ) {
         PaginatedClaimResponse data =
                 claimService.getClaimsForCurrentUser(

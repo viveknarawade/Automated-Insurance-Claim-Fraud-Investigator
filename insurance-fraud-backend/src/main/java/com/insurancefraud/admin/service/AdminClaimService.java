@@ -1,9 +1,8 @@
 package com.insurancefraud.admin.service;
 
-import com.insurancefraud.admin.dto.ClaimDecisionRequestDto;
-import com.insurancefraud.admin.dto.ClaimDecisionResponseDto;
-import com.insurancefraud.admin.dto.DashboardResponseDto;
-import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
+import com.insurancefraud.admin.dto.*;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.enums.ClaimSortField;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
@@ -20,6 +19,13 @@ public interface AdminClaimService {
 
     DashboardResponseDto getAdminDashboard();
     List<com.insurancefraud.claim.dto.ClaimSummaryResponseDto> getUnassignedClaimsForTenant();
+
+    PaginatedAdminClaimResponseDto getAllClaims(
+            int pageNumber,
+            int pageSize,
+            ClaimSortField sortBy,
+            String sortDir
+    );
 }
 
 

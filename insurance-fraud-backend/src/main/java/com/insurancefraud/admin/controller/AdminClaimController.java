@@ -3,7 +3,9 @@ package com.insurancefraud.admin.controller;
 import com.insurancefraud.admin.dto.*;
 import com.insurancefraud.admin.service.AdminClaimService;
 import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.enums.ClaimSortField;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -114,6 +116,32 @@ public class AdminClaimController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Unassigned claims retrieved", 200, Instant.now(), claims));
     }
 
+    @GetMapping("/claims")
+    public ResponseEntity<ApiResponse<PaginatedAdminClaimResponseDto>> getAllClaims(
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+
+        PaginatedAdminClaimResponseDto data =
+                adminClaimService.getAllClaims(
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        sortDir
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claims retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
 }
 
 

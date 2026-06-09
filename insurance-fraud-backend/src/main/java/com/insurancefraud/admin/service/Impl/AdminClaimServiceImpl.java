@@ -1,20 +1,20 @@
 package com.insurancefraud.admin.service.Impl;
 
-import com.insurancefraud.admin.dto.ClaimDecisionRequestDto;
-import com.insurancefraud.admin.dto.ClaimDecisionResponseDto;
-import com.insurancefraud.admin.dto.DashboardResponseDto;
-import com.insurancefraud.admin.dto.InvestigatorsWorkloadResDto;
+import com.insurancefraud.admin.dto.*;
 import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.admin.service.AdminClaimService;
+import com.insurancefraud.claim.dto.PaginatedClaimResponse;
 import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.security.CurrentUserService;
 import com.insurancefraud.entity.Claim;
-import com.insurancefraud.enums.FraudStatus;
+import com.insurancefraud.enums.*;
+import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import com.insurancefraud.entity.User;
-import com.insurancefraud.enums.ClaimStatus;
-import com.insurancefraud.enums.RoleCode;
-import com.insurancefraud.enums.UserStatus;
 import com.insurancefraud.claim.repository.ClaimRepo;
 import com.insurancefraud.repository.UserRepo;
 import lombok.extern.slf4j.Slf4j;
@@ -28,12 +28,14 @@ public class AdminClaimServiceImpl implements AdminClaimService {
 
     private final CurrentUserService currentUserService;
     private final UserRepo userRepo;
+    private final ModelMapper mapper;
     private final ClaimRepo claimRepo;
 
-    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo) {
+    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper) {
         this.currentUserService = currentUserService;
         this.userRepo = userRepo;
         this.claimRepo =claimRepo;
+        this.mapper =mapper;
     }
 
     @Override
@@ -240,6 +242,65 @@ public class AdminClaimServiceImpl implements AdminClaimService {
             dto.setCreatedAt(c.getCreatedAt());
             return dto;
         }).toList();
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginatedAdminClaimResponseDto getAllClaims(int pageNumber,int pageSize, ClaimSortField sortBy, String sortDir) {
+
+        User admin = currentUserService.getCurrentActiveUser();
+
+        // PAGE SIZE PROTECTION
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
+        if (pageSize < 1) {
+            pageSize = 10;
+        }
+
+        // SORT DIRECTION
+        Sort sort =
+                sortDir.equalsIgnoreCase("ASC")
+                        ? Sort.by(sortBy.getFieldName()).ascending()
+                        : Sort.by(sortBy.getFieldName()).descending();
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+
+
+        Page<Claim> claimPages =
+                claimRepo.findByTenant_TenantCodeAndIsDeletedFalse(
+                        admin.getTenant().getTenantCode(),
+                        pageable
+                );
+
+
+        List<ClaimSummaryResponseDto> dtoList =
+                claimPages.getContent()
+                        .stream()
+                        .map(claim ->
+                                mapper.map(
+                                        claim,
+                                        ClaimSummaryResponseDto.class
+                                )
+                        )
+                        .toList();
+
+
+        log.info("Retrieved {} claims for user {}", dtoList.size(), admin.getEmail());
+        PaginatedAdminClaimResponseDto response = new PaginatedAdminClaimResponseDto();
+        response.setContent(dtoList);
+        response.setTotalElements(claimPages.getTotalElements());
+        response.setTotalPages(claimPages.getTotalPages());
+        response.setPageNo(claimPages.getNumber());
+        response.setPageSize(claimPages.getSize());
+        response.setFirst(claimPages.isFirst());
+        response.setLast(claimPages.isLast());
+        response.setSorted(claimPages.getSort().isSorted());
+        response.setSortBy(sortBy.name());
+        response.setNextPage(claimPages.hasNext() ? (long) claimPages.getNumber() + 1 : null);
+        response.setPreviousPage(claimPages.hasPrevious() ? (long) claimPages.getNumber() - 1 : null);
+        return response;
     }
 }
 
