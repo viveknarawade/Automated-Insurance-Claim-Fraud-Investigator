@@ -1,24 +1,27 @@
-import axios from "axios";
-import { getAccessToken } from "../utils/auth";
+import api from "./api";
 
-export const getDashboard = () => {
-  const token = getAccessToken();
+/** Dashboard stats */
+export const getAdminDashboard = () =>
+  api.get("/admin/dashboard");
 
-  return axios.get("http://localhost:8081/api/v1/admin/dashboard", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+/** Investigator workload list */
+export const getInvestigatorsWorkload = () =>
+  api.get("/admin/investigators/workload");
+
+/** Assign investigator to a claim */
+export const assignInvestigator = (claimId, investigatorId) =>
+  api.patch(`/admin/claims/${claimId}/assign-investigator`, { investigatorId });
+
+/** Approve a claim */
+export const approveClaim = (claimId, decisionNotes) =>
+  api.patch(`/admin/claims/${claimId}/approve`, { decisionNotes });
+
+/** Reject a claim */
+export const rejectClaim = (claimId, decisionNotes) =>
+  api.patch(`/admin/claims/${claimId}/reject`, { decisionNotes });
+
+/** Get all claims (admin sees all users' claims via the same paginated endpoint) */
+export const getAllClaimsAdmin = (pageNo = 0, pageSize = 20, sortBy = "CREATED_AT", sortDir = "DESC") =>
+  api.get("/claims/my", {
+    params: { pageNo, pageSize, sortBy, sortDir },
   });
-};
-
-export const getInvestigatorsWorkload = () => {
-  const token = getAccessToken();
-  return axios.get(
-    "http://localhost:8081/api/v1/admin/investigators/workload",
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
-};
