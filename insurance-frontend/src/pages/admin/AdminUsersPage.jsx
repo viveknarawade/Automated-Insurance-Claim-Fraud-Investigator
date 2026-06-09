@@ -1,15 +1,15 @@
-import DashboardLayout from "../components/DashboardLayout";
-import { Workflow, Lock } from "lucide-react";
+import DashboardLayout from "../../components/DashboardLayout";
+import { Users, Lock } from "lucide-react";
 
-export default function AdminWorkflowPage() {
+export default function AdminUsersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Workflow className="h-6 w-6 text-slate-900" /> Workflow
+            <Users className="h-6 w-6 text-slate-900" /> Users & Roles
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">Design and manage claim processing workflows.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage user accounts, roles, and permissions.</p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center text-center">
@@ -18,8 +18,8 @@ export default function AdminWorkflowPage() {
           </div>
           <h2 className="text-lg font-semibold text-slate-800 mb-1">Coming Soon</h2>
           <p className="text-sm text-slate-500 max-w-sm">
-            Workflow builder is under development. You'll be able to design claim 
-            processing pipelines, set approval flows, and automate routing from here.
+            User management is under development. You'll be able to create users, 
+            assign roles, and manage access permissions from here.
           </p>
           <div className="mt-6 inline-flex items-center rounded-full bg-slate-50 text-slate-900 text-xs font-medium px-3 py-1 ring-1 ring-slate-200">
             Planned for next release

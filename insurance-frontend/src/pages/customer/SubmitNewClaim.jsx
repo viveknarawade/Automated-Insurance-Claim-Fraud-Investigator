@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { addClaim } from "../services/claimService";
-import { uploadDocument, deleteDocument, downloadDocument } from "../services/documentService";
+import DashboardLayout from "../../components/DashboardLayout";
+import { addClaim } from "../../services/claimService";
+import { uploadDocument, deleteDocument, downloadDocument } from "../../services/documentService";
 import {
   FileText, ArrowLeft, CheckCircle2, Loader2, AlertCircle,
   Calendar, MapPin, IndianRupee, AlignLeft, Upload, Trash2,

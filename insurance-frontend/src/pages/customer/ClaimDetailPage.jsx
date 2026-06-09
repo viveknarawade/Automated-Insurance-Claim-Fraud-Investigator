@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { getClaimById } from "../services/claimService";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getClaimById } from "../../services/claimService";
 import {
   uploadDocument, getClaimDocuments, deleteDocument, downloadDocument,
-} from "../services/documentService";
+} from "../../services/documentService";
 import {
   ArrowLeft, FileText, MapPin, Calendar, IndianRupee,
   Upload, Trash2, Download, Loader2, AlertTriangle,

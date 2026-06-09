@@ -1,23 +1,23 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 
-import LoginPage from './pages/LoginPage'
-// import RegisterPage from "./pages/RegisterPage";
-import CustomerDashboard from "./pages/CustomerDashboard";
-import MyClaimPage from './pages/MyClaimPage';
-import ClaimDetailPage from './pages/ClaimDetailPage';
-import SubmitNewClaim from './pages/SubmitNewClaim';
-import ProfilePage from './pages/ProfilePage';
-import NotificationPage from './pages/NotificationPage';
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminClaimDetailPage from "./pages/AdminClaimDetailPage";
-import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
-import AdminWorkloadPage from "./pages/AdminWorkloadPage";
-import AdminTenantsPage from "./pages/AdminTenantsPage";
-import AdminUsersPage from "./pages/AdminUsersPage";
-import AdminFraudRulesPage from "./pages/AdminFraudRulesPage";
-import AdminWorkflowPage from "./pages/AdminWorkflowPage";
-import AdminLogsPage from "./pages/AdminLogsPage";
-import InvestigatorDashboard from "./pages/InvestigatorDashboard";
+import LoginPage from './pages/auth/LoginPage'
+// import RegisterPage from "./pages/auth/RegisterPage";
+import CustomerDashboard from "./pages/customer/CustomerDashboard";
+import MyClaimPage from './pages/customer/MyClaimPage';
+import ClaimDetailPage from './pages/customer/ClaimDetailPage';
+import SubmitNewClaim from './pages/customer/SubmitNewClaim';
+import ProfilePage from './pages/common/ProfilePage';
+import NotificationPage from './pages/common/NotificationPage';
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminClaimsPage from "./pages/admin/AdminClaimsPage";
+import AdminClaimDetailPage from "./pages/admin/AdminClaimDetailPage";
+import AdminWorkloadPage from "./pages/admin/AdminWorkloadPage";
+import AdminTenantsPage from "./pages/admin/AdminTenantsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminFraudRulesPage from "./pages/admin/AdminFraudRulesPage";
+import AdminWorkflowPage from "./pages/admin/AdminWorkflowPage";
+import AdminLogsPage from "./pages/admin/AdminLogsPage";
+import InvestigatorDashboard from "./pages/investigator/InvestigatorDashboard";
 
 function App() {
   return (
@@ -35,8 +35,9 @@ function App() {
 
       {/* Admin */}
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
+      <Route path="/admin/claims" element={<AdminClaimsPage />} />
       <Route path="/admin/claims/:claimId" element={<AdminClaimDetailPage />} />
-      <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+
       <Route path="/admin/workload" element={<AdminWorkloadPage />} />
       <Route path="/admin/tenants" element={<AdminTenantsPage />} />
       <Route path="/admin/users" element={<AdminUsersPage />} />

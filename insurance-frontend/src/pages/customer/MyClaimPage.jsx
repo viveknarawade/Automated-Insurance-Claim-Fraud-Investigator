@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { getAllClaims } from "../services/claimService";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getAllClaims } from "../../services/claimService";
 import {
   FileText, Plus, Loader2, AlertTriangle,
   ChevronLeft, ChevronRight, Eye, Search, Filter

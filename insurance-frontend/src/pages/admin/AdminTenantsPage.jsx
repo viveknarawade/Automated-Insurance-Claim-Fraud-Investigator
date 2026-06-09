@@ -1,4 +1,4 @@
-import DashboardLayout from "../components/DashboardLayout";
+import DashboardLayout from "../../components/DashboardLayout";
 import { Building2, Lock } from "lucide-react";
 
 export default function AdminTenantsPage() {

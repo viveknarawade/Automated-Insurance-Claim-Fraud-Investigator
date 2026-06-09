@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { getAllClaims } from "../services/claimService";
-import { getUser } from "../utils/auth";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getAllClaims } from "../../services/claimService";
+import { getUser } from "../../utils/auth";
 import {
   FileText, Plus, Clock, CheckCircle2,
   XCircle, AlertTriangle, ArrowRight, Loader2,

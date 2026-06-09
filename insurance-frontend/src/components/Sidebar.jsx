@@ -26,7 +26,8 @@ const navsByRole = {
   ],
   admin: [
     { to: "/admin/dashboard", label: "Overview", icon: LayoutDashboard, section: "Operations" },
-    { to: "/admin/analytics", label: "Analytics", icon: BarChart3, section: "Operations" },
+    { to: "/admin/claims", label: "Claims", icon: FileText, section: "Operations" },
+
     { to: "/admin/workload", label: "Investigator Workload", icon: Activity, section: "Operations" },
     { to: "/admin/tenants", label: "Tenants", icon: Building2, section: "Management" },
     { to: "/admin/users", label: "Users & Roles", icon: Users, section: "Management" },

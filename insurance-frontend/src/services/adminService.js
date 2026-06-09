@@ -20,8 +20,8 @@ export const approveClaim = (claimId, decisionNotes) =>
 export const rejectClaim = (claimId, decisionNotes) =>
   api.patch(`/admin/claims/${claimId}/reject`, { decisionNotes });
 
-/** Get all claims (admin sees all users' claims via the same paginated endpoint) */
+/** Get all claims for admin */
 export const getAllClaimsAdmin = (pageNo = 0, pageSize = 20, sortBy = "CREATED_AT", sortDir = "DESC") =>
-  api.get("/claims/my", {
-    params: { pageNo, pageSize, sortBy, sortDir },
+  api.get("/admin/claims", {
+    params: { pageNumber: pageNo, pageSize, sortBy, sortDir },
   });

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { getUser, getRefreshToken, clearAuthData } from "../utils/auth";
-import { logout } from "../services/authService";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getUser, getRefreshToken, clearAuthData } from "../../utils/auth";
+import { logout } from "../../services/authService";
 import { User, Mail, Shield, Building, CheckCircle, Calendar, Edit2, Lock, LogOut, Trash2 } from "lucide-react";
 import { useState } from "react";
 

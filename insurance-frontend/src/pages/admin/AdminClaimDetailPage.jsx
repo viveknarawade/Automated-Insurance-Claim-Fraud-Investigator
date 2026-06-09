@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import DashboardLayout from "../components/DashboardLayout";
-import { getClaimById, getAllUnsignedClaims } from "../services/claimService";
+import DashboardLayout from "../../components/DashboardLayout";
+import { getClaimById, getAllUnsignedClaims } from "../../services/claimService";
 import {
   getInvestigatorsWorkload,
   assignInvestigator,
   approveClaim,
   rejectClaim,
-} from "../services/adminService";
-import { getClaimDocuments, downloadDocument } from "../services/documentService";
+} from "../../services/adminService";
+import { getClaimDocuments, downloadDocument } from "../../services/documentService";
 import {
   ArrowLeft, FileText, MapPin, Calendar, IndianRupee,
   Loader2, AlertTriangle, CheckCircle2, Clock, XCircle,

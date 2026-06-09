@@ -1,4 +1,4 @@
-import DashboardLayout from "../components/DashboardLayout";
+import DashboardLayout from "../../components/DashboardLayout";
 import { ScrollText, Lock } from "lucide-react";
 
 export default function AdminLogsPage() {
