@@ -86,7 +86,9 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
                                         claim.getCreatedAt(),
                                         claim.getIncidentDate(),
                                         claim.getIncidentCity(),
-                                        claim.getUser().getFullName()
+                                        claim.getUser().isDeleted()
+                                                ? "Deleted User"
+                                                : claim.getUser().getFullName()
                                 )
                         )
                         .toList();
@@ -164,7 +166,9 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
         dto.setIncidentState(claim.getIncidentState());
         dto.setDescription(claim.getDescription());
         dto.setCustomerId(claim.getUser().getUserId());
-        dto.setCustomerName(claim.getUser().getFullName());
+        dto.setCustomerName(claim.getUser().isDeleted()
+                ? "Deleted User"
+                : claim.getUser().getFullName());
         dto.setCustomerEmail(claim.getUser().getEmail());
         dto.setDocuments(documents);
         dto.setUpdatedAt(claim.getUpdatedAt());

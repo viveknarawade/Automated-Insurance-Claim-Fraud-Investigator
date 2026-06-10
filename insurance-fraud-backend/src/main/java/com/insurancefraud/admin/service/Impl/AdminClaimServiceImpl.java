@@ -299,7 +299,9 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                                     );
 
                             dto.setCustomerName(
-                                    claim.getUser().getFullName()
+                                    claim.getUser().isDeleted()
+                                            ? "Deleted User"
+                                            : claim.getUser().getFullName()
                             );
 
                             dto.setCustomerEmail(

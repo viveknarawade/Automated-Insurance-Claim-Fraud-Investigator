@@ -32,13 +32,13 @@ public class EmailServiceImpl implements EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setFrom(
-                    "ClaimShield AI <" + sender + ">"
+                    "FraudGuard AI <" + sender + ">"
             );
             helper.setTo(email);
             helper.setSubject("Verify Your Account");
             String htmlContent = """
                     <div style="font-family: Arial, sans-serif; padding: 20px;">
-                        <h2>Welcome to ClaimShield AI 🚀</h2>
+                        <h2>Welcome to FraudGuard AI 🚀</h2>
                         <p>
                             Please verify your email by clicking the button below:
                         </p>
@@ -79,10 +79,10 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendPasswordResetEmail(String email,String token) {
         try {
-            String link = "http://localhost:5500/reset-password.html?token="+ token;
+            String link = "http://localhost:5173/reset-password?token="+ token;
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
-            helper.setFrom("ClaimShield AI <" + sender + ">");
+            helper.setFrom("FraudGuard AI <" + sender + ">");
             helper.setTo(email);
             helper.setSubject("Reset Your Password");
             String html = """
