@@ -1,0 +1,4991 @@
+
+
+// ==========================================
+// FILE: ./repository/UserRepo.java
+// ==========================================
+package com.insurancefraud.repository;
+
+import com.insurancefraud.entity.Tenant;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.RoleCode;
+import com.insurancefraud.enums.UserStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface UserRepo extends JpaRepository<User, Long> {
+
+    boolean existsByEmail(String email);
+
+    Optional<User> findByEmail(String email);
+
+    @Query("""
+        SELECT u FROM User u
+        JOIN FETCH u.role
+        JOIN FETCH u.tenant
+        WHERE u.email = :email
+    """)
+    Optional<User> findByEmailWithRoleAndTenant(
+            @Param("email") String email
+    );
+
+    @Query("""
+        SELECT u FROM User u
+        JOIN FETCH u.role
+        JOIN FETCH u.tenant
+        WHERE u.userId = :userId
+    """)
+    Optional<User> findByIdWithRoleAndTenant(
+            @Param("userId") Long userId
+    );
+
+    List<User> findByTenantAndRole_RoleCodeAndIsDeletedFalseAndStatus(Tenant tenant, RoleCode roleCode, UserStatus userStatus);
+    Optional<User>
+    findByTenantAndRole_RoleCodeAndIsDeletedFalseAndStatusAndUserId(
+            Tenant tenant,
+            RoleCode roleCode,
+            UserStatus status,
+            Long userId
+    );
+
+}
+
+// ==========================================
+// FILE: ./repository/RoleRepo.java
+// ==========================================
+package com.insurancefraud.repository;
+
+import com.insurancefraud.entity.Role;
+import com.insurancefraud.enums.RoleCode;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface RoleRepo extends JpaRepository<Role,Long> {
+    Optional<Role> findByRoleCode(RoleCode roleCode);
+}
+
+
+// ==========================================
+// FILE: ./repository/TenantRepo.java
+// ==========================================
+package com.insurancefraud.repository;
+import com.insurancefraud.entity.Tenant;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface TenantRepo extends JpaRepository<Tenant,Long> {
+
+    Optional<Long> findIdByTenantCode(@NotBlank(message = "tenantCode is required") String tenantCode);
+
+    Optional<Tenant>  findByTenantCode(@NotBlank(message = "tenantCode is required") String tenantCode);
+}
+
+
+// ==========================================
+// FILE: ./service/StorageService.java
+// ==========================================
+package com.insurancefraud.service;
+
+import org.springframework.core.io.Resource;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+
+public interface StorageService {
+
+    String storeFile(InputStream inputStream,String storedFileName) throws IOException;
+    Resource downloadFile(String fileUrl);
+}
+
+// ==========================================
+// FILE: ./service/JwtService.java
+// ==========================================
+package com.insurancefraud.service;
+
+import com.insurancefraud.entity.User;
+
+public interface JwtService {
+
+    String generateEmailVerificationToken(User user);
+
+    String generateToken(User user);
+
+    String generateRefreshToken(User user);
+
+    Long extractUserId(String token);
+
+    String generatePasswordResetToken(User user);
+}
+
+// ==========================================
+// FILE: ./service/impl/MyUserDetailsService.java
+// ==========================================
+package com.insurancefraud.service.impl;
+
+import com.insurancefraud.entity.User;
+import com.insurancefraud.repository.UserRepo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+
+@Service
+@RequiredArgsConstructor
+public class MyUserDetailsService implements UserDetailsService {
+
+    private final UserRepo userRepo;
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        return new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPasswordHash(),
+                Collections.singleton(
+                        new SimpleGrantedAuthority("ROLE_" + user.getRole().getRoleCode().name())
+                )
+        );
+    }
+}
+
+// ==========================================
+// FILE: ./service/impl/JwtServiceImpl.java
+// ==========================================
+package com.insurancefraud.service.impl;
+
+import com.insurancefraud.entity.User;
+import com.insurancefraud.service.JwtService;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.time.Duration;
+import java.util.Date;
+
+@Slf4j
+@Service
+public class JwtServiceImpl implements JwtService {
+
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.access.expiration}")
+    private Duration accessExpiration;
+
+    @Value("${jwt.refresh.expiration}")
+    private Duration refreshExpiration;
+
+    private SecretKey getSignKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes());
+    }
+
+    @Override
+    public String generateEmailVerificationToken(User user) {
+        return Jwts.builder()
+                .subject(String.valueOf(user.getUserId()))
+                .claim("type", "EMAIL_VERIFICATION")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 30))
+                .signWith(getSignKey())
+                .compact();
+    }
+
+    @Override
+    public String generateToken(User user) {
+        return Jwts.builder()
+                .subject(String.valueOf(user.getUserId()))
+                .claim("role", user.getRole().getRoleCode().name())
+                .claim("tenantId", user.getTenant().getTenantId())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + accessExpiration.toMillis()))
+                .signWith(getSignKey())
+                .compact();
+    }
+
+    @Override
+    public String generateRefreshToken(User user) {
+        return Jwts.builder()
+                .subject(String.valueOf(user.getUserId()))
+                .claim("type", "REFRESH")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + refreshExpiration.toMillis()))
+                .signWith(getSignKey())
+                .compact();
+    }
+
+    @Override
+    public Long extractUserId(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSignKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        return Long.parseLong(claims.getSubject());
+    }
+
+    @Override
+    public String generatePasswordResetToken(User user) {
+        return Jwts.builder()
+                .subject(String.valueOf(user.getUserId()))
+                .claim("type", "PASSWORD_RESET")
+                .issuedAt(new Date())
+                .expiration(
+                        new Date(
+                                System.currentTimeMillis()
+                                        + (1000 * 60 * 15)  //30min
+                        )
+                )
+                .signWith(getSignKey())
+                .compact();
+    }
+}
+
+// ==========================================
+// FILE: ./service/impl/EmailServiceImpl.java
+// ==========================================
+package com.insurancefraud.service.impl;
+
+import com.insurancefraud.common.exception.EmailSendFailedException;
+import com.insurancefraud.service.EmailService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+@RequiredArgsConstructor
+@Service
+@Slf4j
+public class EmailServiceImpl implements EmailService {
+
+    private final JavaMailSender mailSender;
+
+    @Value("${spring.mail.username}")
+    private String sender;
+
+    @Async("emailTaskExecutor")
+    @Override
+    public void sendVerificationEmail(String email, String token) {
+
+        try {
+            String link =
+                    "http://localhost:8081/api/v1/auth/verify-email?token=" + token;
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom(
+                    "ClaimShield AI <" + sender + ">"
+            );
+            helper.setTo(email);
+            helper.setSubject("Verify Your Account");
+            String htmlContent = """
+                    <div style="font-family: Arial, sans-serif; padding: 20px;">
+                        <h2>Welcome to ClaimShield AI 🚀</h2>
+                        <p>
+                            Please verify your email by clicking the button below:
+                        </p>
+                        <a href="%s"
+                           target="_blank"
+                           style="
+                               display:inline-block;
+                               padding:10px 20px;
+                               background-color:#4CAF50;
+                               color:white;
+                               text-decoration:none;
+                               border-radius:5px;
+                           ">
+                           Verify Email
+                        </a>
+                        <p style="margin-top:20px;">
+                            If you didn't request this, ignore this email.
+                        </p>
+                    </div>
+                    """.formatted(link);
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+            log.info("Verification email sent to {}", email);
+        } catch (MessagingException e) {
+            log.error(
+                    "Failed to send verification email to {}",
+                    email,
+                    e
+            );
+
+            throw new EmailSendFailedException(
+                    "Unable to send verification email"
+            );
+        }
+    }
+
+    @Async("emailTaskExecutor")
+    @Override
+    public void sendPasswordResetEmail(String email,String token) {
+        try {
+            String link = "http://localhost:5500/reset-password.html?token="+ token;
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom("ClaimShield AI <" + sender + ">");
+            helper.setTo(email);
+            helper.setSubject("Reset Your Password");
+            String html = """
+            <h2>Password Reset</h2>
+            <p>Click below to reset password:</p>
+            <a href="%s">
+                Reset Password
+            </a>
+        """.formatted(link);
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("password reset email sent to {}", email);
+        } catch (Exception e) {
+            throw new EmailSendFailedException(
+                    "Unable to send reset email"
+            );
+        }
+    }
+}
+
+// ==========================================
+// FILE: ./service/impl/LocalStorageService.java
+// ==========================================
+package com.insurancefraud.service.impl;
+
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.service.StorageService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.nio.file.*;
+import java.time.LocalDate;
+
+@Service
+@RequiredArgsConstructor
+public class LocalStorageService implements StorageService {
+
+    private final Path rootPath;
+
+    @Override
+    public String storeFile(InputStream inputStream,String storedFileName) throws IOException {
+        LocalDate today = LocalDate.now();
+        Path dateDirectory = rootPath.resolve(
+                today.getYear()
+                        + File.separator
+                        + String.format("%02d", today.getMonthValue())
+                        + File.separator
+                        + String.format("%02d", today.getDayOfMonth())
+        );
+
+        Files.createDirectories(dateDirectory);
+        Path filePath = dateDirectory.resolve(storedFileName);
+
+        try (OutputStream outputStream = Files.newOutputStream(filePath, StandardOpenOption.CREATE_NEW)){
+            StreamUtils.copy(inputStream, outputStream);
+        }
+        return rootPath.relativize(filePath).toString();
+    }
+
+    @Override
+    public Resource downloadFile(String fileUrl) {
+        try {
+            Path filePath = rootPath.resolve(fileUrl).normalize();
+            if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+                throw new ResourceNotFoundException("File not found");
+            }
+            return new UrlResource(filePath.toUri());
+        } catch (MalformedURLException e) {
+            throw new ResourceNotFoundException("Invalid file path");
+        }
+    }
+
+
+}
+
+// ==========================================
+// FILE: ./service/EmailService.java
+// ==========================================
+package com.insurancefraud.service;
+
+import jakarta.mail.MessagingException;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public interface EmailService {
+    public void sendVerificationEmail(String email,String token);
+    public void sendPasswordResetEmail(@NotBlank @Email String email, String token);
+}
+
+
+// ==========================================
+// FILE: ./InsuranceFraudBackendApplication.java
+// ==========================================
+package com.insurancefraud;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class InsuranceFraudBackendApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(InsuranceFraudBackendApplication.class, args);
+    }
+
+}
+
+
+// ==========================================
+// FILE: ./investigator/service/InvestigatorClaimService.java
+// ==========================================
+package com.insurancefraud.investigator.service;
+
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.investigator.dto.*;
+
+import java.util.List;
+
+public interface InvestigatorClaimService {
+    PaginatedInvestigatorClaimResponseDto getAssignedClaimsForInvestigator(
+            int pageNumber,
+            int pageSize,
+            ClaimSortField sortBy,
+            String sortDir
+    );
+
+    InvestigatorClaimReviewResponseDto reviewClaimById(Long claimId, InvestigatorClaimReviewRequestDto requestDto);
+
+    InvestigatorClaimDetailsResponseDto getClaimDetails(Long claimId);
+}
+
+
+// ==========================================
+// FILE: ./investigator/service/impl/InvestigatorClaimServiceImpl.java
+// ==========================================
+package com.insurancefraud.investigator.service.impl;
+
+import com.insurancefraud.claim.repository.ClaimRepo;
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.common.security.CurrentUserService;
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.entity.Claim;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import com.insurancefraud.investigator.dto.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.transaction.annotation.Transactional;
+import com.insurancefraud.investigator.service.InvestigatorClaimService;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+@Slf4j
+public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
+
+    private final CurrentUserService currentUserService;
+    private final ClaimRepo claimRepo;
+    private  final ClaimDocumentRepo claimDocumentRepo;
+
+
+    public InvestigatorClaimServiceImpl(CurrentUserService currentUserService, ClaimRepo claimRepo,ClaimDocumentRepo claimDocumentRepo) {
+        this.currentUserService = currentUserService;
+        this.claimRepo = claimRepo;
+        this.claimDocumentRepo =claimDocumentRepo;
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginatedInvestigatorClaimResponseDto getAssignedClaimsForInvestigator(
+            int pageNumber,
+            int pageSize,
+            ClaimSortField sortBy,
+            String sortDir
+    ) {
+
+        User investigator = currentUserService.getCurrentActiveUser();
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
+        if (pageSize < 1) {
+            pageSize = 10;
+        }
+
+        Sort sort =
+                sortDir.equalsIgnoreCase("ASC")
+                        ? Sort.by(sortBy.getFieldName()).ascending()
+                        : Sort.by(sortBy.getFieldName()).descending();
+
+        Pageable pageable =
+                PageRequest.of(
+                        pageNumber,
+                        pageSize,
+                        sort
+                );
+
+        Page<Claim> claimPages =
+                claimRepo.findByAssignedInvestigatorAndIsDeletedFalse(
+                        investigator,
+                        pageable
+                );
+
+        List<InvestigatorClaimResponseDto> dtoList =
+                claimPages.getContent()
+                        .stream()
+                        .map(claim ->
+                                new InvestigatorClaimResponseDto(
+                                        claim.getClaimId(),
+                                        claim.getClaimNumber(),
+                                        claim.getClaimType(),
+                                        claim.getClaimAmount(),
+                                        claim.getClaimStatus(),
+                                        claim.getFraudStatus(),
+                                        claim.getCreatedAt(),
+                                        claim.getIncidentDate(),
+                                        claim.getIncidentCity(),
+                                        claim.getUser().getFullName()
+                                )
+                        )
+                        .toList();
+
+        log.info(
+                "INVESTIGATOR : Found {} claims assigned to investigator {}",
+                dtoList.size(),
+                investigator.getEmail()
+        );
+
+        PaginatedInvestigatorClaimResponseDto response =
+                new PaginatedInvestigatorClaimResponseDto();
+
+        response.setContent(dtoList);
+        response.setTotalElements(claimPages.getTotalElements());
+        response.setTotalPages(claimPages.getTotalPages());
+        response.setPageNo(claimPages.getNumber());
+        response.setPageSize(claimPages.getSize());
+        response.setFirst(claimPages.isFirst());
+        response.setLast(claimPages.isLast());
+        response.setSorted(claimPages.getSort().isSorted());
+        response.setSortBy(sortBy.name());
+
+        response.setNextPage(
+                claimPages.hasNext()
+                        ? (long) claimPages.getNumber() + 1
+                        : null
+        );
+
+        response.setPreviousPage(
+                claimPages.hasPrevious()
+                        ? (long) claimPages.getNumber() - 1
+                        : null
+        );
+
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InvestigatorClaimDetailsResponseDto getClaimDetails(Long claimId) {
+        User investigator = currentUserService.getCurrentActiveUser();
+
+        Claim claim = claimRepo.findByClaimIdAndAssignedInvestigatorAndIsDeletedFalse(claimId, investigator)
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        List<ClaimDocumentResponseDto> documents =
+                claimDocumentRepo
+                        .findByClaim_ClaimIdAndIsDeletedFalse(claimId)
+                        .stream()
+                        .map(doc ->
+                                new ClaimDocumentResponseDto(
+                                        doc.getClaimDocId(),
+                                        doc.getFileName(),
+                                        doc.getDocumentType().name()
+                                )
+                        )
+                        .toList();
+
+        InvestigatorClaimDetailsResponseDto dto =
+                new InvestigatorClaimDetailsResponseDto();
+
+        dto.setReviewAllowed(
+                claim.getClaimStatus() == ClaimStatus.UNDER_REVIEW && claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS
+        );
+
+        dto.setClaimId(claim.getClaimId());
+        dto.setClaimNumber(claim.getClaimNumber());
+        dto.setClaimType(claim.getClaimType());
+        dto.setClaimAmount(claim.getClaimAmount());
+        dto.setClaimStatus(claim.getClaimStatus());
+        dto.setFraudStatus(claim.getFraudStatus());
+        dto.setIncidentDate(claim.getIncidentDate());
+        dto.setIncidentCity(claim.getIncidentCity());
+        dto.setIncidentState(claim.getIncidentState());
+        dto.setDescription(claim.getDescription());
+        dto.setCustomerId(claim.getUser().getUserId());
+        dto.setCustomerName(claim.getUser().getFullName());
+        dto.setCustomerEmail(claim.getUser().getEmail());
+        dto.setDocuments(documents);
+        dto.setUpdatedAt(claim.getUpdatedAt());
+        dto.setReviewNotes(claim.getReviewNotes());
+        dto.setCreatedAt(claim.getCreatedAt());
+        return dto;
+    }
+
+    @Transactional
+    @Override
+    public InvestigatorClaimReviewResponseDto reviewClaimById(Long claimId, InvestigatorClaimReviewRequestDto requestDto) {
+
+        User investigator = currentUserService.getCurrentActiveUser();
+
+        Claim claim = claimRepo
+                .findByClaimIdAndAssignedInvestigatorAndClaimStatusAndIsDeletedFalse(claimId, investigator, ClaimStatus.UNDER_REVIEW)
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found or not assigned"));
+
+        if (claim.getFraudStatus() != FraudStatus.PENDING_ANALYSIS) {
+            log.warn("Claim {} already reviewed by investigator {}", claim.getClaimNumber(), investigator.getEmail());
+            throw new IllegalStateException("Claim already reviewed");
+        }
+
+        claim.setReviewNotes(requestDto.getReviewNotes());
+        claim.setFraudStatus(requestDto.getFraudStatus());
+        claimRepo.save(claim);
+        log.info(
+                "Investigator {} reviewed claim {}",
+                investigator.getEmail(),
+                claim.getClaimNumber()
+        );
+
+        return new InvestigatorClaimReviewResponseDto(
+                claim.getClaimId(),
+                claim.getClaimNumber(),
+                claim.getClaimStatus(),
+                claim.getFraudStatus(),
+                claim.getReviewNotes(),
+                investigator.getFullName(),
+                claim.getUpdatedAt()
+        );
+    }
+}
+
+
+// ==========================================
+// FILE: ./investigator/controller/InvestigatorClaimController.java
+// ==========================================
+package com.insurancefraud.investigator.controller;
+
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.investigator.dto.*;
+import com.insurancefraud.investigator.service.InvestigatorClaimService;
+import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.bind.annotation.*;
+import com.insurancefraud.service.StorageService;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.List;
+
+@RequestMapping("/api/v1/investigator")
+@RestController
+public class InvestigatorClaimController {
+
+    private final InvestigatorClaimService investigatorClaimService;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final StorageService storageService;
+
+    public InvestigatorClaimController(InvestigatorClaimService investigatorClaimService,ClaimDocumentRepo claimDocumentRepo, StorageService storageService) {
+        this.investigatorClaimService = investigatorClaimService;
+        this.claimDocumentRepo =claimDocumentRepo;
+        this.storageService = storageService;
+    }
+
+
+    @GetMapping("/claims")
+    public ResponseEntity<ApiResponse<PaginatedInvestigatorClaimResponseDto>> getAssignedClaims(
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+
+        PaginatedInvestigatorClaimResponseDto data =
+                investigatorClaimService.getAssignedClaimsForInvestigator(
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        sortDir
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Assigned claims retrieved successfully",
+                        200,
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @PatchMapping("/claims/{claimId}/review")
+    public ResponseEntity<ApiResponse<InvestigatorClaimReviewResponseDto>> reviewClaim(
+            @PathVariable Long claimId,
+            @Valid
+            @RequestBody InvestigatorClaimReviewRequestDto requestDto
+    ) {
+        InvestigatorClaimReviewResponseDto reviewResponseDto =
+                investigatorClaimService.reviewClaimById(
+                        claimId,
+                        requestDto
+                );
+        ApiResponse<InvestigatorClaimReviewResponseDto> response =
+                new ApiResponse<>(
+                        true,
+                        "Claim reviewed successfully",
+                        200,
+                        Instant.now(),
+                        reviewResponseDto
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/claims/{claimId}")
+    public ResponseEntity<ApiResponse<InvestigatorClaimDetailsResponseDto>>
+    getClaimDetails(
+            @PathVariable Long claimId
+    ) {
+        InvestigatorClaimDetailsResponseDto claimDetails =
+                investigatorClaimService.getClaimDetails(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim details retrieved successfully",
+                        200,
+                        Instant.now(),
+                        claimDetails
+                )
+        );
+
+
+    }
+
+    @GetMapping("/documents/{claimDocId}/view")
+    public ResponseEntity<Resource> viewDocument(
+            @PathVariable Long claimDocId
+    ) {
+
+        ClaimDocument document =
+                claimDocumentRepo
+                        .findByClaimDocIdAndIsDeletedFalse(claimDocId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found"));
+
+        Resource resource = storageService.downloadFile(document.getFileUrl());
+        
+        String mimeType = document.getMimeType();
+        if (mimeType == null || mimeType.isBlank()) {
+            mimeType = "application/octet-stream";
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + document.getOriginalFileName() + "\"")
+                .contentLength(document.getFileSize())
+                .body(resource);
+    }
+}
+
+
+
+// ==========================================
+// FILE: ./investigator/dto/ClaimDocumentResponseDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+import lombok.*;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
+public class ClaimDocumentResponseDto {
+
+    private Long documentId;
+
+    private String fileName;
+
+    private String documentType;
+
+}
+
+// ==========================================
+// FILE: ./investigator/dto/InvestigatorClaimResponseDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+@Setter
+@Getter
+@AllArgsConstructor
+public class InvestigatorClaimResponseDto {
+        private Long claimId;
+        private String claimNumber;
+        private ClaimType claimType;
+        private BigDecimal claimAmount;
+        private ClaimStatus claimStatus;
+        private FraudStatus fraudStatus;
+        private Instant createdAt;
+        private Instant incidentDate;
+        private String incidentCity;
+        private String customerName;
+}
+
+
+// ==========================================
+// FILE: ./investigator/dto/PaginatedInvestigatorClaimResponseDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@Data
+public class PaginatedInvestigatorClaimResponseDto {
+
+    private List<InvestigatorClaimResponseDto> content;
+
+    private long totalElements;
+
+    private int totalPages;
+
+    private int pageNo;
+
+    private int pageSize;
+
+    private boolean first;
+
+    private boolean last;
+
+    private boolean sorted;
+
+    private String sortBy;
+
+    private Long nextPage;
+
+    private Long previousPage;
+}
+
+// ==========================================
+// FILE: ./investigator/dto/InvestigatorClaimReviewResponseDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+@AllArgsConstructor
+public class InvestigatorClaimReviewResponseDto {
+
+    private Long claimId;
+    private String claimNumber;
+    private ClaimStatus claimStatus;
+    private FraudStatus fraudStatus;
+    private String reviewNotes;
+    private String investigatorName;
+    private Instant updatedAt;
+}
+
+// ==========================================
+// FILE: ./investigator/dto/InvestigatorClaimDetailsResponseDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+
+@Getter
+@Setter
+@Data
+public class InvestigatorClaimDetailsResponseDto {
+
+
+    private boolean reviewAllowed;
+    private String reviewNotes;
+
+    // Claim Info
+    private Long claimId;
+    private String claimNumber;
+    private ClaimType claimType;
+    private BigDecimal claimAmount;
+    private ClaimStatus claimStatus;
+    private FraudStatus fraudStatus;
+
+    private Instant incidentDate;
+    private String incidentCity;
+    private String incidentState;
+    private String description;
+    private Instant updatedAt;
+    // Customer Info
+    private Long customerId;
+    private String customerName;
+    private String customerEmail;
+
+    // Documents
+    private List<ClaimDocumentResponseDto> documents;
+
+    // Audit
+    private Instant createdAt;
+}
+
+
+// ==========================================
+// FILE: ./investigator/dto/InvestigatorClaimReviewRequestDto.java
+// ==========================================
+package com.insurancefraud.investigator.dto;
+
+import com.insurancefraud.enums.FraudStatus;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class InvestigatorClaimReviewRequestDto {
+    @NotNull(message = "Review notes is required")
+    private String reviewNotes;
+    @NotNull(message = "Fraud status is required")
+    private FraudStatus fraudStatus;
+
+}
+
+
+// ==========================================
+// FILE: ./enums/ClaimStatus.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum ClaimStatus {
+    PENDING,
+    UNDER_REVIEW,
+    INVESTIGATION_COMPLETED,
+    APPROVED,
+    REJECTED,
+    CLOSED
+}
+
+
+// ==========================================
+// FILE: ./enums/DocumentType.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum DocumentType {
+    ACCIDENT_PHOTO,
+    FIR,
+    VEHICLE_DOCUMENT,
+    POLICY_DOCUMENT,
+    MEDICAL_REPORT,
+    REPAIR_ESTIMATE,
+    INVOICE,
+    OTHER
+}
+
+
+
+// ==========================================
+// FILE: ./enums/StorageProvider.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum StorageProvider {
+    AWS_S3,
+    CLOUDINARY,
+    LOCAL
+}
+
+
+
+// ==========================================
+// FILE: ./enums/ClaimType.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum ClaimType {
+    CAR,
+    BIKE,
+    TRUCK,
+     AUTO,
+    OTHER
+}
+
+// ==========================================
+// FILE: ./enums/ClaimSortField.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum ClaimSortField {
+
+    CREATED_AT("createdAt"),
+
+    CLAIM_AMOUNT("claimAmount"),
+
+    INCIDENT_DATE("incidentDate"),
+
+    CLAIM_STATUS("claimStatus");
+
+    private final String fieldName;
+
+    ClaimSortField(String fieldName) {
+        this.fieldName = fieldName;
+    }
+
+    public String getFieldName() {
+        return fieldName;
+    }
+}
+
+// ==========================================
+// FILE: ./enums/UserStatus.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum UserStatus {
+    PENDING,
+    ACTIVE,
+    BLOCKED,
+    DELETED
+}
+
+// ==========================================
+// FILE: ./enums/RoleCode.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum RoleCode {
+    ADMIN,
+    INVESTIGATOR,
+    USER
+}
+
+
+// ==========================================
+// FILE: ./enums/FraudStatus.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum FraudStatus {
+    CLEAR,
+    SUSPECTED,
+    CONFIRMED,
+    PENDING_ANALYSIS
+}
+
+
+// ==========================================
+// FILE: ./enums/DocumentStatus.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum DocumentStatus {
+    ACTIVE,
+    SCANNING,
+    INFECTED,
+    DELETED,
+    PENDING
+}
+
+
+
+// ==========================================
+// FILE: ./enums/TenantStatus.java
+// ==========================================
+package com.insurancefraud.enums;
+
+public enum TenantStatus {
+    ACTIVE,
+    INACTIVE,
+    SUSPENDED
+}
+
+
+// ==========================================
+// FILE: ./enums/SupportedDocumentType.java
+// ==========================================
+package com.insurancefraud.enums;
+
+import lombok.Getter;
+
+@Getter
+public enum SupportedDocumentType {
+    PDF("application/pdf"),
+    PNG("image/png"),
+    JPG("image/jpeg"),
+    JPEG("image/jpeg");
+
+    private final String mimeType;
+
+    SupportedDocumentType(String mimeType) {
+        this.mimeType=mimeType;
+    }
+
+    // Helper method to validate incoming strings
+    public static boolean isValidMimeType(String type){
+        for (SupportedDocumentType docType: SupportedDocumentType.values()){
+            if(docType.getMimeType().equalsIgnoreCase(type)){
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+}
+
+
+// ==========================================
+// FILE: ./claim/repository/ClaimRepo.java
+// ==========================================
+package com.insurancefraud.claim.repository;
+
+import com.insurancefraud.entity.Claim;
+import com.insurancefraud.entity.Tenant;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+
+@Repository
+public interface ClaimRepo extends JpaRepository<Claim, Long> {
+    @Query(value = "SELECT nextval('claim_number_seq')", nativeQuery = true)
+    Long getNextSequenceValue();
+
+    Page<Claim> findByUserAndIsDeletedFalse(User user, Pageable pageable);
+
+    Optional<Claim>  findByUserAndClaimIdAndIsDeletedFalse(User user, Long claimId);
+
+    Optional<Claim> findByClaimIdAndIsDeletedFalse(Long claimId);
+
+    Long countByAssignedInvestigatorAndClaimStatusNotAndIsDeletedFalse(
+            User investigator,
+            ClaimStatus status
+    );
+
+    Optional<Claim> findByClaimIdAndTenantAndIsDeletedFalse(
+            Long claimId,
+            Tenant tenant
+    );
+
+
+    Page<Claim> findByAssignedInvestigatorAndIsDeletedFalse(User investigator, Pageable pageable);
+
+    Optional<Claim> findByClaimIdAndAssignedInvestigatorAndClaimStatusAndIsDeletedFalse(Long claimId, User investigator, ClaimStatus claimStatus);
+
+    Optional<Claim> findByClaimIdAndClaimStatusAndIsDeletedFalse(Long claimId, ClaimStatus claimStatus);
+
+    Long countByTenantAndIsDeletedFalse(Tenant tenant);
+
+    Long countByTenantAndClaimStatusAndIsDeletedFalse(Tenant tenant, ClaimStatus claimStatus);
+
+    Long countByTenantAndFraudStatusAndIsDeletedFalse(Tenant tenant, FraudStatus fraudStatus);
+
+    List<Claim> findByTenant_TenantCodeAndIsDeletedFalseAndAssignedInvestigatorIsNull(String tenantCode);
+
+
+    Page<Claim> findByTenant_TenantCodeAndIsDeletedFalse(
+            String tenantCode,
+            Pageable pageable
+    );
+
+    Long countByAssignedInvestigatorAndFraudStatusNotAndIsDeletedFalse(User investigator, FraudStatus fraudStatus);
+
+    Optional<Claim> findByClaimIdAndAssignedInvestigatorAndIsDeletedFalse(Long claimId, User investigator);
+}
+
+
+// ==========================================
+// FILE: ./claim/service/ClaimService.java
+// ==========================================
+package com.insurancefraud.claim.service;
+
+
+import com.insurancefraud.claim.dto.ClaimDetailResponseDto;
+import com.insurancefraud.claim.dto.ClaimRequestDto;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.claim.dto.PaginatedClaimResponse;
+import com.insurancefraud.enums.ClaimSortField;
+import jakarta.validation.Valid;
+
+public interface ClaimService {
+    ClaimSummaryResponseDto createClaim(@Valid ClaimRequestDto requestDto);
+    PaginatedClaimResponse getClaimsForCurrentUser(int pageNumber, int pageSize, ClaimSortField sortBy, String sortDir);
+
+    ClaimDetailResponseDto getClaimById(Long claimId);
+}
+
+
+// ==========================================
+// FILE: ./claim/service/impl/ClaimServiceImpl.java
+// ==========================================
+package com.insurancefraud.claim.service.impl;
+
+import com.insurancefraud.common.security.CurrentUserServiceImpl;
+import com.insurancefraud.claim.dto.ClaimDetailResponseDto;
+import com.insurancefraud.claim.dto.ClaimRequestDto;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.claim.dto.PaginatedClaimResponse;
+import com.insurancefraud.entity.Claim;
+import com.insurancefraud.entity.Tenant;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.common.exception.UserNotFoundException;
+import com.insurancefraud.claim.repository.ClaimRepo;
+import com.insurancefraud.repository.UserRepo;
+import com.insurancefraud.claim.service.ClaimService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Pageable;
+import java.time.Year;
+import java.util.List;
+
+@Slf4j
+@RequiredArgsConstructor
+@Service
+public class ClaimServiceImpl implements ClaimService {
+
+    private final CurrentUserServiceImpl currentUserService;
+    private final ClaimRepo claimRepo;
+    private final UserRepo userRepo;
+    private final ModelMapper mapper;
+
+
+    public String generateClaimNumber(String tenantCode) {
+        int year = Year.now().getValue();
+        Long nextSequenceValue = claimRepo.getNextSequenceValue();
+        return String.format("%s-%d-%05d", tenantCode, year, nextSequenceValue);
+
+    }
+
+    @Transactional
+    @Override
+    public ClaimSummaryResponseDto createClaim(ClaimRequestDto requestDto) {
+        // Validate incident_date is not null before processing
+        if (requestDto.getIncidentDate() == null) {
+            throw new IllegalArgumentException("Incident date cannot be null");
+        }
+
+        User currentUser = currentUserService.getCurrentActiveUser();
+
+        User user = userRepo.findById(currentUser.getUserId())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        Tenant tenant = user.getTenant();
+        String claimNumber = generateClaimNumber(tenant.getTenantCode());
+
+        Claim claim = mapper.map(requestDto, Claim.class);
+        claim.setTenant(tenant);
+        claim.setUser(user);
+        claim.setClaimNumber(claimNumber);
+        claim.setFraudStatus(FraudStatus.PENDING_ANALYSIS);
+        claim.setClaimStatus(ClaimStatus.PENDING);
+        claim = claimRepo.save(claim);
+        log.info("Claim created with ID: {}", claim.getClaimId());
+        return mapper.map(claim, ClaimSummaryResponseDto.class);
+
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginatedClaimResponse getClaimsForCurrentUser(int pageNumber, int pageSize, ClaimSortField sortBy, String sortDir) {
+        User currentUser =
+                currentUserService.getCurrentActiveUser();
+
+        User user = userRepo.findById(currentUser.getUserId())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        // PAGE SIZE PROTECTION
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
+        if (pageSize < 1) {
+            pageSize = 10;
+        }
+
+        // SORT DIRECTION
+        Sort sort =
+                sortDir.equalsIgnoreCase("ASC")
+                        ? Sort.by(sortBy.getFieldName()).ascending()
+                        : Sort.by(sortBy.getFieldName()).descending();
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+        Page<Claim> claimPages = claimRepo.findByUserAndIsDeletedFalse(user, pageable);
+
+        List<ClaimSummaryResponseDto> dtoList =
+                claimPages.getContent()
+                        .stream()
+                        .map(claim ->
+                                mapper.map(
+                                        claim,
+                                        ClaimSummaryResponseDto.class
+                                )
+                        )
+                        .toList();
+
+        log.info("Retrieved {} claims for user {}", dtoList.size(), user.getEmail());
+        PaginatedClaimResponse response = new PaginatedClaimResponse();
+        response.setContent(dtoList);
+        response.setTotalElements(claimPages.getTotalElements());
+        response.setTotalPages(claimPages.getTotalPages());
+        response.setPageNo(claimPages.getNumber());
+        response.setPageSize(claimPages.getSize());
+        response.setFirst(claimPages.isFirst());
+        response.setLast(claimPages.isLast());
+        response.setSorted(claimPages.getSort().isSorted());
+        response.setSortBy(sortBy.name());
+        response.setNextPage(claimPages.hasNext() ? (long) claimPages.getNumber() + 1 : null);
+        response.setPreviousPage(claimPages.hasPrevious() ? (long) claimPages.getNumber() - 1 : null);
+        return response;
+    }
+
+    @Override
+    public ClaimDetailResponseDto getClaimById(Long claimId) {
+        User currentUser = currentUserService.getCurrentActiveUser();
+
+        User user = userRepo.findById(currentUser.getUserId())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        Claim claim = claimRepo.findByUserAndClaimIdAndIsDeletedFalse(user, claimId)
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found with ID: " + claimId));
+
+        log.info("Retrieved claim with ID: {} for user {}", claimId, user.getEmail());
+        return mapper.map(claim, ClaimDetailResponseDto.class);
+    }
+}
+
+// ==========================================
+// FILE: ./claim/controller/ClaimController.java
+// ==========================================
+package com.insurancefraud.claim.controller;
+
+import com.insurancefraud.claim.dto.ClaimDetailResponseDto;
+import com.insurancefraud.claim.dto.ClaimRequestDto;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.claim.dto.PaginatedClaimResponse;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.claim.service.ClaimService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+
+@Slf4j
+@RestController
+@RequiredArgsConstructor
+@Tag(name = "ClaimController", description = "Endpoints for managing insurance claims")
+@RequestMapping("/api/v1/claims")
+public class ClaimController {
+
+    private final ClaimService claimService;
+
+    @Operation(summary = "Create a new insurance claim", description = "Allows users to submit a new insurance claim with all necessary details.")
+    @PostMapping
+    public ResponseEntity<ApiResponse<ClaimSummaryResponseDto>> createClaim(@Valid @RequestBody ClaimRequestDto requestDto) {
+        ClaimSummaryResponseDto claimResponse = claimService.createClaim(requestDto);
+
+        ApiResponse<ClaimSummaryResponseDto> response = new ApiResponse<>(
+                true,
+                "Claim created successfully",
+                201,
+                Instant.now(),
+                claimResponse
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<PaginatedClaimResponse>> getMyClaims(
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+        PaginatedClaimResponse data =
+                claimService.getClaimsForCurrentUser(
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        sortDir
+                );
+
+          ApiResponse<PaginatedClaimResponse> response =
+                new ApiResponse<>(
+                        true,
+                        "Claims retrieved successfully",
+                        200,
+                        Instant.now(),
+                        data
+                );
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{claimId}")
+    public ResponseEntity<ApiResponse<ClaimDetailResponseDto>> getClaimById(@PathVariable Long claimId) {
+        ClaimDetailResponseDto claimResponse = claimService.getClaimById(claimId);
+
+        ApiResponse<ClaimDetailResponseDto> response = new ApiResponse<>(
+                true,
+                "Claim retrieved successfully",
+                200,
+                Instant.now(),
+                claimResponse
+        );
+        return ResponseEntity.ok(response);
+    }
+
+}
+
+
+// ==========================================
+// FILE: ./claim/dto/ClaimSummaryResponseDto.java
+// ==========================================
+package com.insurancefraud.claim.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+
+public class ClaimSummaryResponseDto {
+
+    private Long claimId;
+
+    private String claimNumber;
+    private String customerName;
+
+    private String customerEmail;
+
+    private String investigatorName;
+    private ClaimType claimType;
+
+    private BigDecimal claimAmount;
+
+    private ClaimStatus claimStatus;
+
+    private FraudStatus fraudStatus;
+
+    private Instant incidentDate;
+
+    private String incidentCity;
+
+    private Instant createdAt;
+}
+
+// ==========================================
+// FILE: ./claim/dto/ClaimDetailResponseDto.java
+// ==========================================
+package com.insurancefraud.claim.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+public class ClaimDetailResponseDto {
+
+    private Long claimId;
+
+    private String claimNumber;
+
+    private ClaimType claimType;
+
+    private BigDecimal claimAmount;
+
+    private ClaimStatus claimStatus;
+
+    private FraudStatus fraudStatus;
+
+    private BigDecimal fraudScore;
+
+    private String description;
+
+    private Instant incidentDate;
+
+    private String incidentAddress;
+
+    private String incidentCity;
+
+    private String incidentState;
+
+    private String reviewNotes;
+
+    private Instant createdAt;
+
+    private Instant updatedAt;
+}
+
+// ==========================================
+// FILE: ./claim/dto/PaginatedClaimResponse.java
+// ==========================================
+package com.insurancefraud.claim.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class PaginatedClaimResponse {
+    private List<ClaimSummaryResponseDto> content;
+    private long totalElements;
+    private int totalPages;
+    private int pageNo;
+    private int pageSize;
+    private boolean isFirst;
+    private boolean isLast;
+    private boolean sorted;
+    private String sortBy;
+    private Long nextPage;
+    private Long previousPage;
+
+
+
+}
+
+
+// ==========================================
+// FILE: ./claim/dto/ClaimRequestDto.java
+// ==========================================
+package com.insurancefraud.claim.dto;
+
+import com.insurancefraud.enums.ClaimType;
+import jakarta.validation.constraints.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+@Getter
+@Setter
+public class ClaimRequestDto {
+
+    @NotNull(message = "Claim type is required")
+    private ClaimType claimType;
+
+    @NotNull(message = "Claim amount is required")
+    @DecimalMin(
+            value = "1.0",
+            message = "Claim amount must be greater than 0"
+    )
+    private BigDecimal claimAmount;
+
+    @NotBlank(message = "Description is required")
+    @Size(
+            min = 10,
+            max = 1000,
+            message = "Description must be between 10 and 1000 characters"
+    )
+    private String description;
+
+    @NotNull(message = "Incident date is required")
+    private Instant incidentDate;
+
+    @NotBlank(message = "Incident address is required")
+    @Size(max = 500)
+    private String incidentAddress;
+
+    @NotBlank(message = "Incident city is required")
+    @Size(max = 100)
+    private String incidentCity;
+
+    @NotBlank(message = "Incident state is required")
+    @Size(max = 100)
+    private String incidentState;
+}
+
+// ==========================================
+// FILE: ./auth/repository/RefreshTokenRepo.java
+// ==========================================
+package com.insurancefraud.auth.repository;
+
+import com.insurancefraud.entity.RefreshToken;
+import com.insurancefraud.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface RefreshTokenRepo extends JpaRepository<RefreshToken,Long> {
+    Optional<RefreshToken> findByToken(String refreshToken);
+    List<RefreshToken> findByUser(User user);
+}
+
+// ==========================================
+// FILE: ./auth/service/AuthService.java
+// ==========================================
+package com.insurancefraud.auth.service;
+
+import com.insurancefraud.auth.dto.*;
+import jakarta.validation.Valid;
+
+public interface AuthService {
+    void registerUser(RegisterRequestDto requestDto);
+    void verifyEmail(String token);
+    LoginResponseDto authenticateUser(@Valid LoginRequestDto loginDto);
+    void logout(LogoutRequestDto logoutDto);
+    void resendVerification(String email);
+    void delete(@Valid DeleteRequestDto deleteDto) ;
+    void forgotPassword(@Valid ForgotPasswordRequestDto requestDto);
+    void resetPassword(@Valid ResetPasswordRequestDto requestDto);
+}
+
+
+// ==========================================
+// FILE: ./auth/service/impl/AuthServiceImpl.java
+// ==========================================
+package com.insurancefraud.auth.service.impl;
+
+import com.insurancefraud.auth.dto.*;
+import com.insurancefraud.auth.repository.RefreshTokenRepo;
+import com.insurancefraud.common.exception.*;
+import com.insurancefraud.entity.RefreshToken;
+import com.insurancefraud.entity.Role;
+import com.insurancefraud.entity.Tenant;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.RoleCode;
+import com.insurancefraud.enums.UserStatus;
+import com.insurancefraud.repository.*;
+import com.insurancefraud.auth.service.AuthService;
+import com.insurancefraud.common.security.CurrentUserService;
+import com.insurancefraud.service.EmailService;
+import com.insurancefraud.service.JwtService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Slf4j
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+    private final UserRepo userRepo;
+    private final TenantRepo tenantRepo;
+    private final RoleRepo roleRepo;
+    private final ModelMapper mapper;
+    private final PasswordEncoder encoder;
+    private final JwtService jwtService;
+    private final EmailService emailService;
+    private final RefreshTokenRepo refreshTokenRepo;
+    private final AuthenticationManager authManager;
+    private final CurrentUserService currentUserService;
+
+    // Register User and send Verification email
+    @Override
+    public void registerUser(RegisterRequestDto requestDto) {
+
+        if (userRepo.existsByEmail(requestDto.getEmail())) {
+            throw new UserAlreadyExistsException(
+                    "A user with email " + requestDto.getEmail() + " already exists."
+            );
+        }
+        Tenant tenant = tenantRepo.findByTenantCode(requestDto.getTenantCode())
+                .orElseThrow(() ->
+                        new TenantNotFoundException(
+                                "No tenant exists with code: " + requestDto.getTenantCode()
+                        )
+                );
+        Role userRole = roleRepo.findByRoleCode(RoleCode.USER)
+                .orElseThrow(() ->
+                        new RoleNotFoundException("Default USER role not found.")
+                );
+
+        User newUser = mapper.map(requestDto, User.class);
+        newUser.setPasswordHash(
+                encoder.encode(requestDto.getPassword())
+        );
+
+
+
+        newUser.setStatus(UserStatus.PENDING);
+        newUser.setTenant(tenant);
+        newUser.setRole(userRole);
+        newUser.setEmailVerifiedAt(null);
+        User savedUser = userRepo.save(newUser);
+        log.info("User registered email {} ",savedUser.getEmail());
+
+        String token = jwtService.generateEmailVerificationToken(savedUser);
+        emailService.sendVerificationEmail(savedUser.getEmail(), token);
+
+
+    }
+
+    // Verify User Email
+    @Override
+    public void verifyEmail(String token) {
+        Long userId = jwtService.extractUserId(token);
+        User user = userRepo.findById(userId).orElseThrow(()->
+                new UsernameNotFoundException("User not found..."));
+
+        if(user.getEmailVerifiedAt() !=null){
+            throw  new EmailAlreadyVerifiedException("Already Verified");
+        }
+        user.setEmailVerifiedAt(Instant.now());
+        user.setStatus(UserStatus.ACTIVE);
+        userRepo.save(user);
+    }
+
+    // login user
+    @Override
+    @Transactional
+    public LoginResponseDto authenticateUser(LoginRequestDto loginDto) {
+
+        User user = userRepo
+                .findByEmailWithRoleAndTenant(loginDto.getEmail())
+                .orElseThrow(() ->
+                        new BadCredentialsException(
+                                "Invalid email or password"
+                        ));
+
+        if (user.isDeleted()) {
+            throw new AccountDeletedException("Account deleted");
+        }
+
+        authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginDto.getEmail(),
+                        loginDto.getPassword()
+                )
+        );
+
+        if (user.getEmailVerifiedAt() == null) {
+            throw new EmailNotVerifiedException(
+                    "Email not verified"
+            );
+        }
+
+        String accessToken =
+                jwtService.generateToken(user);
+
+        String refreshTokenString =
+                jwtService.generateRefreshToken(user);
+
+        saveRefreshTokenToDB(user, refreshTokenString);
+
+        // MANUAL DTO MAPPING
+        UserResponseDto userDto = new UserResponseDto();
+
+        userDto.setUserId(user.getUserId());
+        userDto.setFullName(user.getFullName());
+        userDto.setEmail(user.getEmail());
+        userDto.setAvatarUrl(user.getAvatarUrl());
+
+        userDto.setRole(
+                user.getRole().getRoleCode().name()
+        );
+
+        userDto.setTenantCode(
+                user.getTenant().getTenantCode()
+        );
+
+        userDto.setStatus(
+                user.getStatus().name()
+        );
+
+        LoginResponseDto response =
+                new LoginResponseDto();
+
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshTokenString);
+        response.setUser(userDto);
+
+        log.info(
+                "User logged in email {} ",
+                userDto.getEmail()
+        );
+        log.info("pass@123 = {}",   encoder.encode("pass@123"));
+
+        return response;
+    }
+
+    //logout user
+    @Override
+    @Transactional
+    public void logout(LogoutRequestDto logoutDto) {
+        User currentUser = currentUserService.getCurrentActiveUser();
+        RefreshToken token = refreshTokenRepo
+                .findByToken(logoutDto.getRefreshToken())
+                .orElseThrow(() ->
+                        new TokenNotFoundException("Invalid Refresh Token")
+                );
+
+        // CHECK TOKEN OWNER
+        if (!token.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new RuntimeException(
+                    "You are not allowed to revoke this token"
+            );
+        }
+        // CHECK REVOKED
+        if (token.isRevoked()) {
+            throw new TokenAlreadyRevokedException(
+                    "Token already revoked"
+            );
+        }
+        // CHECK EXPIRY
+        if (token.getExpiresAt().isBefore(Instant.now())) {
+            throw new TokenExpiredException(
+                    "Refresh token expired"
+            );
+        }
+
+        token.setRevoked(true);
+        refreshTokenRepo.save(token);
+        log.info("User logged out successfully: {}",  currentUser.getEmail() );
+    }
+
+    //resend email verification
+    @Override
+    public void resendVerification(String email) {
+
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        if (user.getEmailVerifiedAt() != null) {
+            throw new EmailAlreadyVerifiedException("Already verified");
+        }
+        String token = jwtService.generateEmailVerificationToken(user);
+        emailService.sendVerificationEmail(email, token);
+        log.info("ResendEmailVerification  email :{}",email);
+    }
+
+    //delete user account
+    @Override
+    @Transactional
+    public void delete(DeleteRequestDto deleteDto) {
+
+        User currentUser = currentUserService.getCurrentActiveUser();
+        User user = userRepo.findById(currentUser.getUserId())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        // CHECK PASSWORD
+        if (!encoder.matches(deleteDto.getPassword(), user.getPasswordHash())) {
+            throw new BadCredentialsException("Invalid password");
+        }
+        // REVOKE ALL REFRESH TOKENS
+        List<RefreshToken> allTokens = refreshTokenRepo.findByUser(user);
+        for (RefreshToken token : allTokens) {
+            token.setRevoked(true);
+        }
+        refreshTokenRepo.saveAll(allTokens);
+        // SOFT DELETE
+        user.setEmail(
+                "deleted_" + user.getUserId() + "_" + user.getEmail()
+        );
+        user.setDeleted(true);
+        user.setDeletedAt(Instant.now());
+        user.setStatus(UserStatus.DELETED);
+        user.setUpdatedAt(Instant.now());
+        userRepo.save(user);
+        log.info("Account deleted for user {}", user.getEmail());
+    }
+
+    @Override
+    public void forgotPassword(ForgotPasswordRequestDto requestDto) {
+
+
+        Optional<User> optionalUser =
+                userRepo.findByEmail(
+                        requestDto.getEmail()
+                );
+
+        // ALWAYS RETURN SUCCESS
+        if (optionalUser.isEmpty()) {
+            log.info("optional user is empty");
+            return;
+        }
+
+        User user = optionalUser.get();
+
+        if (user.isDeleted()) {
+            log.info("user is deleted");
+            return;
+        }
+
+        String token =  jwtService.generatePasswordResetToken(user);
+
+        emailService.sendPasswordResetEmail(
+                user.getEmail(),
+                token
+        );
+        log.info(
+                "AUTH_SERVICE : Password reset email sent to {}",
+                user.getEmail()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequestDto requestDto) {
+        Long userId =
+                jwtService.extractUserId(
+                        requestDto.getToken()
+                );
+        User user = userRepo.findById(userId)
+                .orElseThrow(() ->
+                        new UserNotFoundException(
+                                "User not found"
+                        )
+                );
+        if (user.isDeleted()) {
+            throw new AccountDeletedException(
+                    "Account deleted"
+            );
+        }
+        user.setPasswordHash(
+                encoder.encode(
+                        requestDto.getNewPassword()
+                )
+        );
+        user.setUpdatedAt(Instant.now());
+        userRepo.save(user);
+        // REVOKE ALL TOKENS
+        List<RefreshToken> tokens =
+                refreshTokenRepo.findByUser(user);
+
+        for (RefreshToken token : tokens) {
+            token.setRevoked(true);
+        }
+        refreshTokenRepo.saveAll(tokens);
+    }
+
+    //Save Refresh Token Into DB
+    public void saveRefreshTokenToDB(User user,String refreshTokenString){
+        RefreshToken refreshTokenEntity = new RefreshToken();
+        refreshTokenEntity.setUser(user);
+        refreshTokenEntity.setToken(refreshTokenString);
+        refreshTokenEntity.setExpiresAt(Instant.now().plus(java.time.Duration.ofDays(7)));
+        refreshTokenRepo.save(refreshTokenEntity);
+        log.info("RefreshToken saved to DB for Email : {} ",user.getEmail() );
+    }
+}
+
+
+// ==========================================
+// FILE: ./auth/controller/AuthController.java
+// ==========================================
+package com.insurancefraud.auth.controller;
+
+import com.insurancefraud.auth.dto.*;
+import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.auth.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+
+@Slf4j
+@RestController
+@RequiredArgsConstructor
+@Tag(name = "Authentication APIs")
+@RequestMapping("/api/v1/auth")
+public class AuthController {
+
+    private final AuthService authService;
+
+    @Operation(summary = "Register user")
+    @PostMapping("/register")
+    ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequestDto requestDto){
+        authService.registerUser(requestDto);
+        ApiResponse<Void> response = new ApiResponse<>(
+                true,
+                "Registration successful. Please verify your email.",
+                HttpStatus.CREATED.value(),
+                Instant.now(),
+                null
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(summary = "send email verification")
+    @GetMapping("/verify-email")
+    public ResponseEntity<ApiResponse<String>> verifyEmail(@RequestParam String token) {
+        authService.verifyEmail(token);
+        ApiResponse<String> response = new ApiResponse<>(
+                true,
+                "Email verified successfully",
+                200,
+                Instant.now(),
+                null
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Login user")
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponseDto>> login(@Valid @RequestBody LoginRequestDto loginDto) {
+
+        LoginResponseDto data = authService.authenticateUser(loginDto);
+
+        ApiResponse<LoginResponseDto> response = new ApiResponse<>(
+                true,
+                "Login successful",
+                200,
+                Instant.now(),
+                data
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Logout user")
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>>  logout(@Valid @RequestBody LogoutRequestDto logoutDto){
+
+        authService.logout(logoutDto);
+        ApiResponse<Void>  response = new ApiResponse<>(
+                true,
+                "Logged out successfully",
+                200,
+                Instant.now(),
+                null
+        );
+
+        return  ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Delete user account ")
+    @PostMapping("/delete-account")
+    public ResponseEntity<ApiResponse<Void>> deleteAccount(@Valid @RequestBody DeleteRequestDto deleteDto){
+
+        log.info("DELETE ACCOUNT API HIT");
+        authService.delete(deleteDto);
+        log.info("ACCOUNT DELETED");
+
+        ApiResponse<Void> response = new ApiResponse<>(
+                true,
+                "Account deleted successfully",
+                200,
+                Instant.now(),
+                null
+        );
+        return  ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "send email reverification")
+    @PostMapping("/resend-verification")
+    public ResponseEntity<ApiResponse<String>> resend(@Valid @RequestBody ResendVerificationRequest request) {
+
+        authService.resendVerification(request.getEmail());
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Verification email sent", 200, Instant.now(), null)
+        );
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid
+            @RequestBody
+            ForgotPasswordRequestDto requestDto
+    ) {
+        authService.forgotPassword(requestDto);
+        ApiResponse<Void> response =
+                new ApiResponse<>(
+                        true,
+                        "If email exists, reset link sent",
+                        200,
+                        Instant.now(),
+                        null
+                );
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>>
+    resetPassword(
+            @Valid
+            @RequestBody
+            ResetPasswordRequestDto requestDto
+    ) {
+        authService.resetPassword(requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Password reset successful",
+                        200,
+                        Instant.now(),
+                        null
+                )
+        );
+    }
+
+}
+
+
+// ==========================================
+// FILE: ./auth/dto/ResetPasswordRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class ResetPasswordRequestDto {
+
+    @NotBlank
+    private String token;
+
+    @NotBlank
+    @Size(min = 8)
+    private String newPassword;
+}
+
+// ==========================================
+// FILE: ./auth/dto/RegisterRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class RegisterRequestDto {
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    private String email;
+
+    @NotBlank(message = "Full name is required")
+    private String fullName;
+
+    @NotBlank(message = "Password is required")
+    @Size(min = 8, message = "Password must be at least 8 characters")
+    private String password;
+
+    @NotBlank(message = "tenantCode is required")
+    private String tenantCode;
+}
+
+
+// ==========================================
+// FILE: ./auth/dto/DeleteRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class DeleteRequestDto {
+
+    @NotBlank(message = "Password required")
+    private String password;
+}
+
+// ==========================================
+// FILE: ./auth/dto/LoginRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class LoginRequestDto {
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    private String password;
+}
+
+// ==========================================
+// FILE: ./auth/dto/LoginResponseDto.java
+// ==========================================
+    package com.insurancefraud.auth.dto;
+
+    import lombok.Getter;
+    import lombok.Setter;
+
+
+    @Getter
+    @Setter
+    public class LoginResponseDto {
+
+        private String accessToken;
+        private String refreshToken;
+        private UserResponseDto user;
+    }
+
+// ==========================================
+// FILE: ./auth/dto/ForgotPasswordRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class ForgotPasswordRequestDto {
+
+    @NotBlank
+    @Email
+    private String email;
+}
+
+// ==========================================
+// FILE: ./auth/dto/LogoutRequestDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class LogoutRequestDto {
+
+    @NotBlank(message = "Refresh token is required")
+    private String refreshToken;
+}
+
+// ==========================================
+// FILE: ./auth/dto/UserResponseDto.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class UserResponseDto {
+
+    private Long userId;
+
+    private String fullName;
+
+    private String email;
+
+    private String role;
+
+    private String tenantCode;
+
+    private String status;
+
+    private String avatarUrl;
+}
+
+// ==========================================
+// FILE: ./auth/dto/ResendVerificationRequest.java
+// ==========================================
+package com.insurancefraud.auth.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class ResendVerificationRequest {
+
+    @NotBlank(message = "Email is required")
+    private String email;
+}
+
+// ==========================================
+// FILE: ./document/repository/ClaimDocumentRepo.java
+// ==========================================
+package com.insurancefraud.document.repository;
+
+import com.insurancefraud.entity.ClaimDocument;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface ClaimDocumentRepo extends JpaRepository<ClaimDocument,Long>  {
+    List<ClaimDocument> findByClaim_ClaimIdAndIsDeletedFalse(Long claimId);
+
+    Optional<ClaimDocument>  findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(Long userId, Long claimDocId);
+    Optional<ClaimDocument> findByClaimDocIdAndIsDeletedFalse(Long claimDocId);
+    
+    List<ClaimDocument> findByClaim_ClaimIdAndTenantAndIsDeletedFalse(Long claimId, com.insurancefraud.entity.Tenant tenant);
+    Optional<ClaimDocument> findByClaimDocIdAndTenantAndIsDeletedFalse(Long claimDocId, com.insurancefraud.entity.Tenant tenant);
+}
+
+
+// ==========================================
+// FILE: ./document/service/impl/ClaimDocumentServiceImpl.java
+// ==========================================
+package com.insurancefraud.document.service.impl;
+
+import com.insurancefraud.claim.repository.ClaimRepo;
+import com.insurancefraud.common.exception.*;
+import com.insurancefraud.common.security.CurrentUserService;
+import com.insurancefraud.document.dto.ClaimDocumentsResponseDto;
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.document.service.ClaimDocumentService;
+import com.insurancefraud.entity.Claim;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.enums.DocumentStatus;
+import com.insurancefraud.enums.DocumentType;
+import com.insurancefraud.enums.StorageProvider;
+import com.insurancefraud.enums.SupportedDocumentType;
+import com.insurancefraud.repository.*;
+import com.insurancefraud.service.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ClaimDocumentServiceImpl implements ClaimDocumentService {
+
+    private final CurrentUserService currentUserService;
+    private final StorageService storageService;
+    private final UserRepo userRepo;
+    private final ClaimRepo claimRepo;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final ModelMapper mapper;
+
+    @Transactional
+    @Override
+    public ClaimDocumentsResponseDto uploadClaimDocument(Long claimId, MultipartFile file, DocumentType documentType) {
+        validateFile(file);
+        User user = currentUserService.getCurrentActiveUser();
+        Claim claim = claimRepo.findByClaimIdAndIsDeletedFalse(claimId)
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        if (!claim.getUser().getUserId().equals(user.getUserId())) {
+            throw new UnauthorizedException("You cannot upload documents to this claim");
+        }
+
+        String originalFileName = file.getOriginalFilename();
+
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new InvalidFileException("Invalid file name");
+        }
+
+        String extension = getFileExtension(originalFileName);
+        String storedFileName = UUID.randomUUID() + (extension.isBlank() ? "" : "." + extension);
+        String storagePath;
+        try (InputStream inputStream = file.getInputStream()){
+            storagePath = storageService.storeFile(inputStream, storedFileName);
+        } catch (IOException e) {
+            log.error("File upload failed: {}", e.getMessage());
+            throw new FileStorageException("Failed to store file", e);
+        }
+
+        ClaimDocument claimDocument = new ClaimDocument();
+        claimDocument.setTenant(user.getTenant());
+        claimDocument.setClaim(claim);
+        claimDocument.setUploadedBy(user);
+        claimDocument.setDocumentType(documentType);
+        claimDocument.setFileName(storedFileName);
+        claimDocument.setOriginalFileName(originalFileName);
+        claimDocument.setFileUrl(storagePath);
+        claimDocument.setStorageProvider(StorageProvider.LOCAL);
+        claimDocument.setMimeType(file.getContentType());
+        claimDocument.setFileSize(file.getSize());
+        claimDocument.setDocumentStatus(DocumentStatus.ACTIVE);
+        claimDocument = claimDocumentRepo.save(claimDocument);
+        log.info("Document uploaded successfully for claim {}", claim.getClaimNumber());
+
+        return mapper.map(
+                claimDocument,
+                ClaimDocumentsResponseDto.class
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimDocumentsResponseDto> getClaimDocumentsByClaimId(Long claimId) {
+
+        User user = currentUserService.getCurrentActiveUser();
+
+        Claim claim =
+                claimRepo.findByClaimIdAndIsDeletedFalse(claimId).orElseThrow(() ->
+                                new ResourceNotFoundException("Claim not found with ID: " + claimId));
+
+        if (!claim.getUser().getUserId().equals(user.getUserId())) {
+            throw new UnauthorizedException("You cannot access documents for this claim");
+        }
+
+        log.info("Retrieving documents for claim {}", claim.getClaimNumber());
+        List<ClaimDocument> claimDocuments = claimDocumentRepo.findByClaim_ClaimIdAndIsDeletedFalse(claimId);
+
+        return claimDocuments.stream()
+                .map(doc ->
+                        mapper.map(
+                                doc,
+                                ClaimDocumentsResponseDto.class
+                        )
+                )
+                .toList();
+    }
+
+    @Override
+    public ClaimDocument getClaimDocumentById(Long documentId) {
+        User user = currentUserService.getCurrentActiveUser();
+        return claimDocumentRepo.findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId).orElseThrow(() ->
+                new ResourceNotFoundException("Document not found with ID: " + documentId));
+    }
+
+    @Transactional
+    @Override
+    public void deleteClaimDocument(Long documentId) {
+        User user = currentUserService.getCurrentActiveUser();;
+        ClaimDocument document = claimDocumentRepo
+                        .findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        document.setDeleted(true);
+        document.setDeletedAt(Instant.now());
+        document.setDocumentStatus(DocumentStatus.DELETED);
+        document.setUpdatedAt(Instant.now());
+        claimDocumentRepo.save(document);
+        log.info("Document {} soft deleted by user {}", document.getOriginalFileName(), user.getEmail());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource downloadDocument(Long documentId) {
+
+        User user = currentUserService.getCurrentActiveUser();
+        ClaimDocument document = claimDocumentRepo
+                .findByClaim_User_UserIdAndClaimDocIdAndIsDeletedFalse(user.getUserId(), documentId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        Resource resource;
+        try {
+            resource = storageService.downloadFile(document.getFileUrl());
+        } catch (Exception e) {
+            log.error("File download failed: {}", e.getMessage());
+            throw new FileStorageException("Failed to download file", e);
+        }
+        log.info("Document {} downloaded by user {}", document.getOriginalFileName(), user.getEmail());
+        return resource;
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new EmptyFileException("File is empty");
+        }
+        String mimeType = file.getContentType();
+
+        if (mimeType == null || !SupportedDocumentType.isValidMimeType(mimeType)) {
+            throw new InvalidMimeTypeException("Unsupported file type");
+        }
+
+        long maxFileSize = 10 * 1024 * 1024;
+        if (file.getSize() > maxFileSize) {
+            throw new InvalidFileException("File size exceeds 10MB");
+        }
+    }
+
+    private String getFileExtension(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot == -1 ? "" : fileName.substring(lastDot + 1);
+    }
+
+}
+
+// ==========================================
+// FILE: ./document/service/ClaimDocumentService.java
+// ==========================================
+package com.insurancefraud.document.service;
+
+import com.insurancefraud.document.dto.ClaimDocumentsResponseDto;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.enums.DocumentType;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+public interface ClaimDocumentService {
+
+    ClaimDocumentsResponseDto uploadClaimDocument(
+            Long claimId,
+            MultipartFile file,
+            DocumentType documentType
+    );
+
+    List<ClaimDocumentsResponseDto> getClaimDocumentsByClaimId(Long claimId);
+
+    ClaimDocument getClaimDocumentById(Long documentId);
+    void deleteClaimDocument(Long documentId);
+
+    Resource downloadDocument(Long documentId);
+}
+
+// ==========================================
+// FILE: ./document/controller/ClaimDocumentController.java
+// ==========================================
+package com.insurancefraud.document.controller;
+
+import com.insurancefraud.document.dto.ClaimDocumentsResponseDto;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.enums.DocumentType;
+import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.document.service.ClaimDocumentService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.Instant;
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+public class ClaimDocumentController {
+
+    private final ClaimDocumentService claimDocumentService;
+
+
+    @PostMapping("/api/v1/claims/{claimId}/documents")
+    public ResponseEntity<ApiResponse<ClaimDocumentsResponseDto>> uploadClaimDocument(
+            @PathVariable Long claimId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("documentType") DocumentType documentType
+    ) {
+
+        ClaimDocumentsResponseDto data = claimDocumentService.uploadClaimDocument(claimId, file, documentType);
+
+        ApiResponse<ClaimDocumentsResponseDto> response =
+                new ApiResponse<>(
+                        true,
+                        "Document uploaded successfully",
+                        HttpStatus.CREATED.value(),
+                        Instant.now(),
+                        data
+                );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @GetMapping("/api/v1/claims/{claimId}/documents")
+    public ResponseEntity<ApiResponse<List<ClaimDocumentsResponseDto>>> getClaimDocuments(
+            @PathVariable Long claimId
+    ) {
+
+        List<ClaimDocumentsResponseDto> data = claimDocumentService.getClaimDocumentsByClaimId(claimId);
+
+        ApiResponse<List<ClaimDocumentsResponseDto>> response =
+                new ApiResponse<>(
+                        true,
+                        "Documents retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/api/v1/documents/{documentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteClaimDocument(
+            @PathVariable Long documentId
+    ) {
+        claimDocumentService.deleteClaimDocument(documentId);
+        ApiResponse<Void> response =
+                new ApiResponse<>(
+                        true,
+                        "Document deleted successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        null
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/v1/documents/{documentId}/download")
+    public ResponseEntity<Resource>
+    downloadDocument(
+            @PathVariable Long documentId
+    ) {
+        ClaimDocument document =claimDocumentService.getClaimDocumentById(documentId);
+        Resource resource = claimDocumentService.downloadDocument(documentId);
+
+        return ResponseEntity.ok()
+                .contentType(
+                        MediaType.parseMediaType(
+                                document.getMimeType()
+                        )
+                )
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\""
+                                + document.getOriginalFileName()
+                                + "\""
+                )
+                .contentLength(document.getFileSize())
+                .body(resource);
+    }
+}
+
+
+// ==========================================
+// FILE: ./document/dto/ClaimDocumentsResponseDto.java
+// ==========================================
+package com.insurancefraud.document.dto;
+
+import com.insurancefraud.enums.DocumentStatus;
+import com.insurancefraud.enums.DocumentType;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+public class ClaimDocumentsResponseDto {
+
+    private Long claimDocId;
+    private DocumentType documentType;
+    private String originalFileName;
+    private String fileUrl;
+    private String mimeType;
+    private Long fileSize;
+    private DocumentStatus documentStatus;
+    private Instant createdAt;
+}
+
+// ==========================================
+// FILE: ./entity/Claim.java
+// ==========================================
+package com.insurancefraud.entity;
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.ClaimType;
+import com.insurancefraud.enums.FraudStatus;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+@Getter
+@Setter
+@Table(name = "claims")
+@Entity
+public class Claim {
+
+    @Id
+    @Column(name = "claim_id",nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long claimId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id",nullable = false)
+    private Tenant tenant;
+
+    @ManyToOne
+    @JoinColumn(name = "user_id",nullable = false)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_investigator_id")
+    private User assignedInvestigator;
+
+    @Column(name = "claim_number",nullable = false,unique = true)
+    private String claimNumber;
+
+    @Column(name = "claim_type")
+    @Enumerated(EnumType.STRING)
+    private ClaimType claimType;
+
+    @Column(name = "claim_status")
+    @Enumerated(EnumType.STRING)
+    private ClaimStatus claimStatus;
+
+    @Column(name = "fraud_status")
+    @Enumerated(EnumType.STRING)
+    private FraudStatus fraudStatus;
+
+    @Column(name = "claim_amount")
+    private BigDecimal claimAmount;
+
+    @Column(name = "fraud_score")
+    private BigDecimal fraudScore;
+
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "incident_date",nullable = false)
+    @NotNull(message = "Incident date is required")
+    private Instant incidentDate;
+
+    @Column(name = "incident_address")
+    private String incidentAddress;
+    @Column(name = "incident_city")
+    private String incidentCity;
+    @Column(name = "incident_state")
+    private String incidentState;
+
+    @Column(name = "decision_notes",columnDefinition = "TEXT")
+    private String decisionNotes;
+
+    @Column(name = "review_notes",columnDefinition = "TEXT")
+    private String reviewNotes;
+
+    @Column(name = "created_at",nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at",nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "is_deleted")
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @PrePersist
+    public void  prePersist(){
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    public void preUpdate(){
+        this.updatedAt = Instant.now();
+    }
+
+}
+
+
+// ==========================================
+// FILE: ./entity/Tenant.java
+// ==========================================
+package com.insurancefraud.entity;
+
+
+import com.insurancefraud.enums.TenantStatus;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "tenants")
+public class Tenant {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "tenant_id",nullable = false)
+    private  Long tenantId;
+
+    @Column(name = "tenant_code",nullable = false,unique = true)
+    private String tenantCode;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Enumerated(EnumType.STRING)
+    private TenantStatus status;
+
+}
+
+
+// ==========================================
+// FILE: ./entity/User.java
+// ==========================================
+package com.insurancefraud.entity;
+
+
+import com.insurancefraud.enums.UserStatus;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id",nullable = false)
+    private  Long userId;
+
+    @NotBlank
+    @Email
+    @Column(unique = true,nullable = false)
+    private String email;
+
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(name = "full_name",nullable = false)
+    private String fullName;
+
+    @Column(nullable = true,name = "avatar_url")
+    private String avatarUrl;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
+
+    @Column(name = "is_deleted")
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @Column(name = "last_login")
+    private Instant lastLogin;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
+    @Column(name = "created_at")
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id",nullable = false)
+    private Tenant tenant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id",nullable = false)
+    private Role role;
+
+    @PrePersist
+    public void  prePersist(){
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+
+        if (this.status == null) {
+            this.status = UserStatus.PENDING;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate(){
+        this.updatedAt = Instant.now();
+    }
+
+}
+
+// ==========================================
+// FILE: ./entity/Role.java
+// ==========================================
+package com.insurancefraud.entity;
+
+import com.insurancefraud.enums.RoleCode;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Setter
+@Getter
+@Table(name = "roles")
+public class Role{
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "role_id",nullable = false)
+    private Long roleId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role_code", nullable = false, unique = true)
+    private RoleCode roleCode;
+
+    @Column(name = "role_name", nullable = false)
+    private String roleName;
+}
+
+
+// ==========================================
+// FILE: ./entity/RefreshToken.java
+// ==========================================
+package com.insurancefraud.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
+import java.time.Instant;
+
+
+@Entity
+@Getter
+@Setter
+@Table(name = "refresh_token")
+public class RefreshToken {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private  Long id;
+
+    @Column(name = "token", nullable = false)
+    private String token;
+
+    @Column(name = "created_at")
+    private Instant createdAt = Instant.now();
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    private boolean revoked =false;
+
+    @ManyToOne
+    @JoinColumn(name =  "user_id",referencedColumnName = "user_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private  User user;
+}
+
+
+// ==========================================
+// FILE: ./entity/ClaimDocument.java
+// ==========================================
+package com.insurancefraud.entity;
+
+import com.insurancefraud.enums.DocumentStatus;
+import com.insurancefraud.enums.DocumentType;
+import com.insurancefraud.enums.StorageProvider;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "claim_documents")
+public class ClaimDocument {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "claim_doc_id")
+    private Long claimDocId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "claim_id", nullable = false)
+    private Claim claim;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uploaded_by", nullable = false)
+    private User uploadedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_type", nullable = false)
+    private DocumentType documentType;
+
+    // INTERNAL GENERATED FILE NAME
+    @Column(name = "file_name", nullable = false)
+    private String fileName;
+
+    // USER ORIGINAL FILE NAME
+    @Column(name = "original_file_name", nullable = false)
+    private String originalFileName;
+
+    @Column(name = "file_url", nullable = false, columnDefinition = "TEXT")
+    private String fileUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "storage_provider", nullable = false)
+    private StorageProvider storageProvider;
+
+    @Column(name = "mime_type", nullable = false)
+    private String mimeType;
+
+    @Column(name = "file_size", nullable = false)
+    private Long fileSize;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_status", nullable = false)
+    private DocumentStatus documentStatus;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "is_deleted")
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+
+        if (this.documentStatus == null) {
+            this.documentStatus = DocumentStatus.ACTIVE;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = Instant.now();
+    }
+}
+
+// ==========================================
+// FILE: ./admin/repository/AdminClaimRepo.java
+// ==========================================
+package com.insurancefraud.admin.repository;
+
+import com.insurancefraud.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface AdminClaimRepo extends JpaRepository<User,Long> {
+}
+
+
+// ==========================================
+// FILE: ./admin/service/Impl/AdminClaimServiceImpl.java
+// ==========================================
+package com.insurancefraud.admin.service.Impl;
+
+import com.insurancefraud.admin.dto.*;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.admin.service.AdminClaimService;
+import com.insurancefraud.claim.dto.PaginatedClaimResponse;
+import com.insurancefraud.common.exception.ResourceNotFoundException;
+import com.insurancefraud.common.security.CurrentUserService;
+import com.insurancefraud.entity.Claim;
+import com.insurancefraud.enums.*;
+import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.transaction.annotation.Transactional;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.claim.repository.ClaimRepo;
+import com.insurancefraud.repository.UserRepo;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.service.StorageService;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.common.exception.FileStorageException;
+@Service
+@Slf4j
+public class AdminClaimServiceImpl implements AdminClaimService {
+
+    private final CurrentUserService currentUserService;
+    private final UserRepo userRepo;
+    private final ModelMapper mapper;
+    private final ClaimRepo claimRepo;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final StorageService storageService;
+
+    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper, ClaimDocumentRepo claimDocumentRepo, StorageService storageService) {
+        this.currentUserService = currentUserService;
+        this.userRepo = userRepo;
+        this.claimRepo =claimRepo;
+        this.mapper =mapper;
+        this.claimDocumentRepo = claimDocumentRepo;
+        this.storageService = storageService;
+    }
+
+    @Override
+    @Transactional
+        public void assignInvestigatorToClaim(Long claimId, Long investigatorId) {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        User investigator =
+                userRepo
+                        .findByTenantAndRole_RoleCodeAndIsDeletedFalseAndStatusAndUserId(
+                                admin.getTenant(),
+                                RoleCode.INVESTIGATOR,
+                                UserStatus.ACTIVE,
+                                investigatorId
+                        )
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Investigator not found"
+                                )
+                        );
+
+        // PREVENT REASSIGNMENT
+        if (claim.getAssignedInvestigator() != null) {
+            throw new IllegalStateException(
+                    "Claim already assigned to investigator"
+            );
+        }
+        claim.setAssignedInvestigator(investigator);
+        claim.setClaimStatus(ClaimStatus.UNDER_REVIEW);
+        claimRepo.save(claim);
+
+        log.info(
+                "Admin {} assigned investigator {} to claim {}",
+                admin.getEmail(),
+                investigator.getEmail(),
+                claim.getClaimNumber()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvestigatorsWorkloadResDto> getInvestigatorsWorkload() {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        List<User> investigators =
+                userRepo
+                        .findByTenantAndRole_RoleCodeAndIsDeletedFalseAndStatus(
+                                admin.getTenant(),
+                                RoleCode.INVESTIGATOR,
+                                UserStatus.ACTIVE
+                        );
+
+        log.info(
+                "Retrieved investigator workload for tenant {}",
+                admin.getTenant().getTenantCode()
+        );
+        return investigators
+                .stream().
+                map(investigator -> {
+                    Long activeClaims = claimRepo.
+                            countByAssignedInvestigatorAndClaimStatusNotAndIsDeletedFalse(investigator, ClaimStatus.CLOSED);
+
+                    Long reviewsCompleted = claimRepo.
+                            countByAssignedInvestigatorAndFraudStatusNotAndIsDeletedFalse(investigator, FraudStatus.PENDING_ANALYSIS);
+
+                    return new InvestigatorsWorkloadResDto(
+                        investigator.getUserId(),
+                        investigator.getFullName(),
+                        investigator.getEmail(),
+                        investigator.getStatus(),
+                        reviewsCompleted,
+                        activeClaims
+                      );
+                }
+                ).toList();
+    }
+
+    @Transactional
+    @Override
+    public ClaimDecisionResponseDto approveClaim(Long claimId, ClaimDecisionRequestDto requestDto) {
+
+        User admin = currentUserService.getCurrentActiveUser();
+
+        Claim claim =claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found or not under review"));
+
+        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
+            throw new IllegalStateException("Claim investigation not completed");
+        }
+        if (claim.getFraudStatus() == FraudStatus.CONFIRMED) {
+            throw new IllegalStateException("Fraudulent claims cannot be approved");
+        }
+        if (claim.getClaimStatus() == ClaimStatus.APPROVED) {
+            throw new IllegalStateException("Claim already approved");
+        }
+
+        claim.setDecisionNotes(requestDto.getDecisionNotes());
+        claim.setClaimStatus(ClaimStatus.APPROVED);
+        claimRepo.save(claim);
+
+        log.info(
+                "Admin {} approved claim {}",
+                admin.getEmail(),
+                claim.getClaimNumber()
+        );
+        return new ClaimDecisionResponseDto(
+                claim.getClaimId(),
+                claim.getClaimNumber(),
+                claim.getClaimStatus(),
+                claim.getDecisionNotes(),
+                claim.getFraudStatus(),
+                admin.getEmail(),
+                claim.getUpdatedAt()
+        );
+    }
+
+    @Transactional
+    @Override
+    public ClaimDecisionResponseDto rejectClaim(Long claimId, ClaimDecisionRequestDto requestDto) {
+        User admin = currentUserService.getCurrentActiveUser();
+        Claim claim =
+                claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Claim not found or not under review"));
+
+        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
+            throw new IllegalStateException("Claim investigation not completed");
+        }
+
+        if (claim.getClaimStatus() == ClaimStatus.REJECTED) {
+            throw new IllegalStateException("Claim already rejected");
+        }
+        claim.setDecisionNotes(requestDto.getDecisionNotes());
+        claim.setClaimStatus(ClaimStatus.REJECTED);
+        claimRepo.save(claim);
+
+        log.info(
+                "Admin {} rejected claim {}",
+                admin.getEmail(),
+                claim.getClaimNumber()
+        );
+
+        return new ClaimDecisionResponseDto(
+                claim.getClaimId(),
+                claim.getClaimNumber(),
+                claim.getClaimStatus(),
+                claim.getDecisionNotes(),
+                claim.getFraudStatus(),
+                admin.getEmail(),
+                claim.getUpdatedAt()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public DashboardResponseDto getAdminDashboard() {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        Long totalClaims = claimRepo.countByTenantAndIsDeletedFalse(admin.getTenant());
+        Long pendingClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.PENDING);
+        Long underReviewClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.UNDER_REVIEW);
+        Long approvedClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.APPROVED);
+        Long rejectedClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.REJECTED);
+        Long suspectedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.SUSPECTED);
+        Long confirmedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.CONFIRMED);
+        Long activeClaims =  pendingClaims + underReviewClaims;
+
+        log.info(
+                "Admin {} retrieved dashboard data for tenant {}",
+                admin.getEmail(),
+                admin.getTenant().getTenantCode()
+        );
+
+        return new DashboardResponseDto(
+                totalClaims,
+                pendingClaims,
+                approvedClaims,
+                rejectedClaims,
+                suspectedFraudClaims,
+                underReviewClaims,
+                confirmedFraudClaims,
+                activeClaims
+        );
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<ClaimSummaryResponseDto> getUnassignedClaimsForTenant() {
+        User admin = currentUserService.getCurrentActiveUser();
+
+        String tenantCode = admin.getTenant().getTenantCode();
+        List<Claim> claims = claimRepo.findByTenant_TenantCodeAndIsDeletedFalseAndAssignedInvestigatorIsNull(tenantCode);
+
+        log.info("Admin {} requested unassigned claims for tenant {}. Returning {} claims",
+                admin.getEmail(), tenantCode, claims.size());
+
+        return claims.stream().map(c -> {
+            ClaimSummaryResponseDto dto = new ClaimSummaryResponseDto();
+            dto.setClaimId(c.getClaimId());
+            dto.setClaimNumber(c.getClaimNumber());
+            dto.setClaimType(c.getClaimType());
+            dto.setClaimAmount(c.getClaimAmount());
+            dto.setClaimStatus(c.getClaimStatus());
+            dto.setFraudStatus(c.getFraudStatus());
+            dto.setIncidentDate(c.getIncidentDate());
+            dto.setIncidentCity(c.getIncidentCity());
+            dto.setCreatedAt(c.getCreatedAt());
+            return dto;
+        }).toList();
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginatedAdminClaimResponseDto getAllClaims(int pageNumber,int pageSize, ClaimSortField sortBy, String sortDir) {
+
+        User admin = currentUserService.getCurrentActiveUser();
+
+        // PAGE SIZE PROTECTION
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
+        if (pageSize < 1) {
+            pageSize = 10;
+        }
+
+        // SORT DIRECTION
+        Sort sort =
+                sortDir.equalsIgnoreCase("ASC")
+                        ? Sort.by(sortBy.getFieldName()).ascending()
+                        : Sort.by(sortBy.getFieldName()).descending();
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+
+
+        Page<Claim> claimPages =
+                claimRepo.findByTenant_TenantCodeAndIsDeletedFalse(
+                        admin.getTenant().getTenantCode(),
+                        pageable
+                );
+
+        List<ClaimSummaryResponseDto> dtoList =
+                claimPages.getContent()
+                        .stream()
+                        .map(claim -> {
+
+                            ClaimSummaryResponseDto dto =
+                                    mapper.map(
+                                            claim,
+                                            ClaimSummaryResponseDto.class
+                                    );
+
+                            dto.setCustomerName(
+                                    claim.getUser().getFullName()
+                            );
+
+                            dto.setCustomerEmail(
+                                    claim.getUser().getEmail()
+                            );
+
+                            dto.setInvestigatorName(
+                                    claim.getAssignedInvestigator() != null
+                                            ? claim.getAssignedInvestigator().getFullName()
+                                            : "Not Assigned"
+                            );
+
+                            return dto;
+                        })
+                        .toList();
+
+        log.info("Retrieved {} claims for admin {}", dtoList.size(), admin.getEmail());
+        PaginatedAdminClaimResponseDto response = new PaginatedAdminClaimResponseDto();
+        response.setContent(dtoList);
+        response.setTotalElements(claimPages.getTotalElements());
+        response.setTotalPages(claimPages.getTotalPages());
+        response.setPageNo(claimPages.getNumber());
+        response.setPageSize(claimPages.getSize());
+        response.setFirst(claimPages.isFirst());
+        response.setLast(claimPages.isLast());
+        response.setSorted(claimPages.getSort().isSorted());
+        response.setSortBy(sortBy.name());
+        response.setNextPage(claimPages.hasNext() ? (long) claimPages.getNumber() + 1 : null);
+        response.setPreviousPage(claimPages.hasPrevious() ? (long) claimPages.getNumber() - 1 : null);
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.insurancefraud.claim.dto.ClaimDetailResponseDto getClaimById(Long claimId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        return mapper.map(claim, com.insurancefraud.claim.dto.ClaimDetailResponseDto.class);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> getClaimDocuments(Long claimId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        List<ClaimDocument> claimDocuments = claimDocumentRepo.findByClaim_ClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant());
+
+        return claimDocuments.stream()
+                .map(doc -> mapper.map(doc, com.insurancefraud.document.dto.ClaimDocumentsResponseDto.class))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource downloadDocument(Long documentId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        ClaimDocument document = claimDocumentRepo
+                .findByClaimDocIdAndTenantAndIsDeletedFalse(documentId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        org.springframework.core.io.Resource resource;
+        try {
+            resource = storageService.downloadFile(document.getFileUrl());
+        } catch (Exception e) {
+            log.error("File download failed: {}", e.getMessage());
+            throw new FileStorageException("Failed to download file", e);
+        }
+        log.info("Document {} downloaded by admin {}", document.getOriginalFileName(), admin.getEmail());
+        return resource;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClaimDocument getClaimDocumentById(Long documentId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        return claimDocumentRepo
+                .findByClaimDocIdAndTenantAndIsDeletedFalse(documentId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
+    }
+}
+
+
+
+// ==========================================
+// FILE: ./admin/service/AdminClaimService.java
+// ==========================================
+package com.insurancefraud.admin.service;
+
+import com.insurancefraud.admin.dto.*;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import com.insurancefraud.enums.ClaimSortField;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
+
+public interface AdminClaimService {
+    void assignInvestigatorToClaim(@Valid Long claimId, @NotNull(message = "Investigator ID cannot be null") Long investigatorId);
+
+    List<InvestigatorsWorkloadResDto> getInvestigatorsWorkload();
+
+    ClaimDecisionResponseDto approveClaim(Long claimsId, ClaimDecisionRequestDto requestDto);
+
+    ClaimDecisionResponseDto rejectClaim(Long claimId, @Valid ClaimDecisionRequestDto requestDto);
+
+    DashboardResponseDto getAdminDashboard();
+    List<com.insurancefraud.claim.dto.ClaimSummaryResponseDto> getUnassignedClaimsForTenant();
+
+    PaginatedAdminClaimResponseDto getAllClaims(
+            int pageNumber,
+            int pageSize,
+            ClaimSortField sortBy,
+            String sortDir
+    );
+
+    com.insurancefraud.claim.dto.ClaimDetailResponseDto getClaimById(Long claimId);
+    List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> getClaimDocuments(Long claimId);
+    org.springframework.core.io.Resource downloadDocument(Long documentId);
+    com.insurancefraud.entity.ClaimDocument getClaimDocumentById(Long documentId);
+}
+
+
+
+
+
+// ==========================================
+// FILE: ./admin/controller/AdminClaimController.java
+// ==========================================
+package com.insurancefraud.admin.controller;
+
+import com.insurancefraud.admin.dto.*;
+import com.insurancefraud.admin.service.AdminClaimService;
+import com.insurancefraud.common.payload.ApiResponse;
+import com.insurancefraud.enums.ClaimSortField;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.List;
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import com.insurancefraud.entity.ClaimDocument;
+
+@RequestMapping("/api/v1/admin")
+@RestController
+public class AdminClaimController {
+
+    private final AdminClaimService adminClaimService;
+
+    public AdminClaimController(AdminClaimService adminClaimService) {
+        this.adminClaimService = adminClaimService;
+    }
+
+    @PatchMapping("/claims/{claimId}/assign-investigator")
+    public ResponseEntity<ApiResponse<Void>>
+    assignInvestigatorToClaim(
+            @PathVariable Long claimId,
+            @Valid @RequestBody AssignInvestigatorRequestDto requestDto
+    ) {
+        adminClaimService.assignInvestigatorToClaim(
+                claimId,
+                requestDto.getInvestigatorId()
+        );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim assigned for investigation",
+                        200,
+                        Instant.now(),
+                        null
+                )
+        );
+    }
+
+    @GetMapping("/investigators/workload")
+    public ResponseEntity<ApiResponse<List<InvestigatorsWorkloadResDto>>> getInvestigatorsWorkload() {
+
+        List<InvestigatorsWorkloadResDto> workloadResDtoList =
+                adminClaimService.getInvestigatorsWorkload();
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Investigator workload retrieved successfully",
+                        200,
+                        Instant.now(),
+                        workloadResDtoList
+                )
+        );
+    }
+
+    @PatchMapping("/claims/{claimId}/approve")
+    public ResponseEntity<ApiResponse<ClaimDecisionResponseDto>> approveClaim(
+            @PathVariable Long claimId,
+            @Valid @RequestBody ClaimDecisionRequestDto requestDto
+    ) {
+        ClaimDecisionResponseDto responseDto = adminClaimService.approveClaim(claimId, requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim approved successfully",
+                        200,
+                        Instant.now(),
+                        responseDto
+                )
+        );
+    }
+
+    @PatchMapping("/claims/{claimId}/reject")
+    public ResponseEntity<ApiResponse<ClaimDecisionResponseDto>> rejectClaim(
+            @PathVariable Long claimId,
+            @Valid @RequestBody ClaimDecisionRequestDto requestDto
+    ) {
+        ClaimDecisionResponseDto responseDto = adminClaimService.rejectClaim(claimId, requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim rejected successfully",
+                        200,
+                        Instant.now(),
+                        responseDto
+                )
+        );
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<ApiResponse<DashboardResponseDto>> getAdminDashboard() {
+        DashboardResponseDto dashboardData = adminClaimService.getAdminDashboard();
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Dashboard data retrieved successfully",
+                        200,
+                        Instant.now(),
+                        dashboardData
+                )
+        );
+    }
+
+    @GetMapping("/claims/unassigned")
+    public ResponseEntity<ApiResponse<List<ClaimSummaryResponseDto>>> getUnassignedClaims() {
+        List<ClaimSummaryResponseDto> claims = adminClaimService.getUnassignedClaimsForTenant();
+        return ResponseEntity.ok(new ApiResponse<>(true, "Unassigned claims retrieved", 200, Instant.now(), claims));
+    }
+
+    @GetMapping("/claims")
+    public ResponseEntity<ApiResponse<PaginatedAdminClaimResponseDto>> getAllClaims(
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+
+        PaginatedAdminClaimResponseDto data =
+                adminClaimService.getAllClaims(
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        sortDir
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claims retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @GetMapping("/claims/{claimId}")
+    public ResponseEntity<ApiResponse<com.insurancefraud.claim.dto.ClaimDetailResponseDto>> getClaimById(
+            @PathVariable Long claimId
+    ) {
+        com.insurancefraud.claim.dto.ClaimDetailResponseDto data = adminClaimService.getClaimById(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim details retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @GetMapping("/claims/{claimId}/documents")
+    public ResponseEntity<ApiResponse<List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto>>> getClaimDocuments(
+            @PathVariable Long claimId
+    ) {
+        List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> data = adminClaimService.getClaimDocuments(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim documents retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @GetMapping("/documents/{documentId}/download")
+    public ResponseEntity<Resource> downloadDocument(
+            @PathVariable Long documentId
+    ) {
+        ClaimDocument document = adminClaimService.getClaimDocumentById(documentId);
+        Resource resource = adminClaimService.downloadDocument(documentId);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(document.getMimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getOriginalFileName() + "\"")
+                .contentLength(document.getFileSize())
+                .body(resource);
+    }
+
+
+}
+
+
+
+
+// ==========================================
+// FILE: ./admin/dto/DashboardResponseDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
+@AllArgsConstructor
+public class DashboardResponseDto {
+    private Long totalClaims;
+    private Long pendingClaims;
+    private Long approvedClaims;
+    private Long rejectedClaims;
+    private Long suspectedFraudClaims;
+    private Long underReviewClaims;
+    private Long confirmedFraudClaims;
+    private Long activeClaims;
+
+}
+
+
+// ==========================================
+// FILE: ./admin/dto/ClaimDecisionRequestDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class ClaimDecisionRequestDto {
+
+    @NotNull(message = "decision notes is required")
+    private String decisionNotes;
+}
+
+
+// ==========================================
+// FILE: ./admin/dto/ClaimDecisionResponseDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import com.insurancefraud.enums.ClaimStatus;
+import com.insurancefraud.enums.FraudStatus;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@Getter
+@Setter
+@AllArgsConstructor
+public class ClaimDecisionResponseDto {
+    private Long claimId;
+    private String decisionNotes;
+    private ClaimStatus claimStatus;
+    private String claimNumber;
+    private FraudStatus fraudStatus;
+    private String decidedBy;
+    private Instant updatedAt;
+}
+
+
+// ==========================================
+// FILE: ./admin/dto/InvestigatorsWorkloadResDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import com.insurancefraud.enums.UserStatus;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
+@AllArgsConstructor
+public class InvestigatorsWorkloadResDto {
+       private Long investigatorId;
+       private String fullName;
+       private String email;
+       private UserStatus status;
+       private Long reviewsCompleted;
+       private Long activeClaims;
+
+
+}
+
+
+// ==========================================
+// FILE: ./admin/dto/AssignInvestigatorRequestDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class AssignInvestigatorRequestDto {
+
+    @NotNull(message = "Investigator ID is required")
+    private Long investigatorId;
+}
+
+// ==========================================
+// FILE: ./admin/dto/PaginatedAdminClaimResponseDto.java
+// ==========================================
+package com.insurancefraud.admin.dto;
+
+import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class PaginatedAdminClaimResponseDto {
+
+    private List<ClaimSummaryResponseDto> content;
+
+    private long totalElements;
+    private int totalPages;
+    private int pageNo;
+    private int pageSize;
+    private boolean isFirst;
+    private boolean isLast;
+    private boolean sorted;
+    private String sortBy;
+    private Long nextPage;
+    private Long previousPage;
+
+}
+
+// ==========================================
+// FILE: ./common/config/AppConfig.java
+// ==========================================
+package com.insurancefraud.common.config;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public ModelMapper modelMapper(){
+        return new ModelMapper();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder(){
+        return new BCryptPasswordEncoder();
+    }
+
+}
+
+
+// ==========================================
+// FILE: ./common/config/SwaggerConfig.java
+// ==========================================
+package com.insurancefraud.common.config;
+
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+
+        final String securitySchemeName = "bearerAuth";
+
+        return new OpenAPI()
+
+                .info(
+                        new Info()
+                                .title("Insurance Fraud API")
+                                .version("1.0")
+                                .description("Enterprise Fraud Detection Platform")
+                )
+
+                .addSecurityItem(
+                        new SecurityRequirement()
+                                .addList(securitySchemeName)
+                )
+
+                .components(
+                        new Components()
+                                .addSecuritySchemes(
+                                        securitySchemeName,
+                                        new SecurityScheme()
+                                                .name(securitySchemeName)
+                                                .type(SecurityScheme.Type.HTTP)
+                                                .scheme("bearer")
+                                                .bearerFormat("JWT")
+                                )
+                );
+    }
+}
+
+// ==========================================
+// FILE: ./common/config/StorageConfig.java
+// ==========================================
+package com.insurancefraud.common.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+@Configuration
+public class StorageConfig {
+
+    @Value("${file.upload-dir}")
+    private String uploadDir;
+
+    @Bean
+    public Path rootPath() {
+        return Paths.get(uploadDir)
+                .toAbsolutePath()
+                .normalize();
+    }
+}
+
+// ==========================================
+// FILE: ./common/config/AsyncConfig.java
+// ==========================================
+package com.insurancefraud.common.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+
+    @Bean("emailTaskExecutor")
+    public Executor emailTaskExecutor(){
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setCorePoolSize(4);
+        taskExecutor.setMaxPoolSize(10);
+        taskExecutor.setQueueCapacity(150);
+        taskExecutor.setThreadNamePrefix("EmailThread-");
+        taskExecutor.initialize();
+        return taskExecutor;
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/config/CustomInstantDeserializer.java
+// ==========================================
+
+
+// ==========================================
+// FILE: ./common/security/CurrentUserServiceImpl.java
+// ==========================================
+package com.insurancefraud.common.security;
+import com.insurancefraud.entity.User;
+import com.insurancefraud.common.exception.AccountDeletedException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+public class CurrentUserServiceImpl
+        implements CurrentUserService {
+
+    @Override
+    public User getCurrentUser() {
+        Authentication authentication =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new InsufficientAuthenticationException(
+                    "User not authenticated"
+            );
+        }
+
+        Object principal =  authentication.getPrincipal();
+
+        if (!(principal instanceof User)) {
+            throw new InsufficientAuthenticationException(
+                    "Invalid authentication principal"
+            );
+        }
+
+        log.info("Current user: {}", ((User) principal).getEmail());
+        return (User) principal;
+    }
+
+    @Override
+    public User getCurrentActiveUser() {
+        User user = getCurrentUser();
+        if (user.isDeleted()) {
+            throw new AccountDeletedException(
+                    "Account already deleted"
+            );
+        }
+        log.info("Active user: {}", user.getEmail());
+        return user;
+    }
+}
+
+// ==========================================
+// FILE: ./common/security/WebSecurityConfig.java
+// ==========================================
+package com.insurancefraud.common.security;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.*;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
+
+
+@Configuration
+@RequiredArgsConstructor
+public class WebSecurityConfig {
+
+    private final JwtFilter jwtFilter;
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        return http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authorizeHttpRequests(auth -> auth
+
+                        // ALLOW PREFLIGHT
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
+
+                        // PUBLIC
+                        .requestMatchers(
+
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/verify-email",
+                                "/api/v1/auth/resend-verification",
+
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
+
+                                // SWAGGER
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+
+                        ).permitAll()
+
+                        // AUTHENTICATED
+                        .requestMatchers(
+                                "/api/v1/auth/logout",
+                                "/api/v1/auth/delete-account"
+                        ).authenticated()
+
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtFilter,
+                        org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class
+                )
+                .build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration configuration =
+                new CorsConfiguration();
+
+        configuration.setAllowedOriginPatterns(
+                List.of("*")
+        );
+
+        configuration.setAllowedMethods(
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS"
+                )
+        );
+
+        configuration.setAllowedHeaders(
+                List.of("*")
+        );
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/**",
+                configuration
+        );
+
+        return source;
+    }
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config
+    ) throws Exception {
+        return config.getAuthenticationManager();
+    }
+}
+
+// ==========================================
+// FILE: ./common/security/JwtFilter.java
+// ==========================================
+package com.insurancefraud.common.security;
+
+import com.insurancefraud.entity.User;
+import com.insurancefraud.repository.UserRepo;
+import com.insurancefraud.service.JwtService;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class JwtFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final UserRepo userRepo;
+
+    @Override
+    protected boolean shouldNotFilter(
+            HttpServletRequest request
+    ) {
+
+        String path = request.getServletPath();
+
+        return path.equals("/api/v1/auth/login")
+                || path.equals("/api/v1/auth/register")
+                || path.equals("/api/v1/auth/verify-email")
+                || path.equals("/api/v1/auth/resend-verification")
+
+                // PASSWORD RESET
+                || path.equals("/api/v1/auth/forgot-password")
+                || path.equals("/api/v1/auth/reset-password")
+
+                // SWAGGER
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-ui");
+    }
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+
+        // ALLOW PREFLIGHT REQUESTS
+        if (request.getMethod().equals("OPTIONS")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+
+        String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
+
+            String token = authHeader.substring(7);
+
+            Long userId = jwtService.extractUserId(token);
+
+            if (userId != null
+                    && SecurityContextHolder.getContext()
+                    .getAuthentication() == null) {
+
+                User user = userRepo.findByIdWithRoleAndTenant(userId)
+                        .orElseThrow(() ->
+                                new RuntimeException("User not found")
+                        );
+
+                if (user.isDeleted()) {
+                    throw new RuntimeException("Account deleted");
+                }
+
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(
+                                user,
+                                null,
+                                List.of(
+                                        new SimpleGrantedAuthority(
+                                                "ROLE_" +
+                                                        user.getRole()
+                                                                .getRoleCode()
+                                                                .name()
+                                        )
+                                )
+                        );
+
+                auth.setDetails(
+                        new WebAuthenticationDetailsSource()
+                                .buildDetails(request)
+                );
+
+                SecurityContextHolder.getContext()
+                        .setAuthentication(auth);
+            }
+
+            filterChain.doFilter(request, response);
+
+        } catch (Exception ex) {
+
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+
+            response.setContentType("application/json");
+
+            response.getWriter().write("""
+        {
+            "error": "Unauthorized",
+            "message": "%s"
+        }
+        """.formatted(ex.getMessage()));
+        }
+    }
+}
+
+// ==========================================
+// FILE: ./common/security/CurrentUserService.java
+// ==========================================
+package com.insurancefraud.common.security;
+
+import com.insurancefraud.entity.User;
+
+public interface CurrentUserService {
+
+    User getCurrentUser();
+
+    User getCurrentActiveUser();
+}
+
+// ==========================================
+// FILE: ./common/exception/RoleNotFoundException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+
+@Slf4j
+public class RoleNotFoundException extends RuntimeException{
+    public RoleNotFoundException(String msg) {
+        super(msg);
+        log.error("RoleNotFoundException : {}", msg);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/TokenNotFoundException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+
+public class TokenNotFoundException extends RuntimeException{
+    public TokenNotFoundException(String msg){
+        super(msg);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/EmailAlreadyVerifiedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class EmailAlreadyVerifiedException extends  RuntimeException{
+    public EmailAlreadyVerifiedException(String msg){
+        super(msg);
+        log.info("EmailAlreadyVerifiedException: {}",msg);
+
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/AccountDeletedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class AccountDeletedException extends RuntimeException{
+    public AccountDeletedException(String msg){
+        super(msg);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/ResourceNotFoundException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class ResourceNotFoundException extends RuntimeException {
+
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/UserNotFoundException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class UserNotFoundException extends RuntimeException{
+    public UserNotFoundException(String msg){
+        super(msg);
+        log.info("UserNotFoundException : {}",msg);
+
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/InvalidMimeTypeException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class InvalidMimeTypeException extends RuntimeException {
+    public InvalidMimeTypeException(String message) {
+        super(message);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/EmailNotVerifiedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+
+public class EmailNotVerifiedException extends  RuntimeException{
+
+    public EmailNotVerifiedException(String msg){
+        super(msg);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/FileStorageException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class FileStorageException extends RuntimeException {
+    public FileStorageException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/ApiError.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+import java.time.LocalDateTime;
+
+@Getter
+@AllArgsConstructor
+public class ApiError {
+
+    private LocalDateTime timestamp;
+    private  int status;
+    private  String error;
+    private  String message;
+    private  String path;
+
+}
+
+// ==========================================
+// FILE: ./common/exception/UserAlreadyExistsException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class UserAlreadyExistsException extends RuntimeException{
+    public UserAlreadyExistsException(String msg){
+        super(msg);
+        log.info("UserAlreadyExistsException : {}",msg);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/TokenAlreadyRevokedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class TokenAlreadyRevokedException extends RuntimeException {
+    public TokenAlreadyRevokedException(String message) {
+        super(message);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/TenantNotFoundException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class TenantNotFoundException extends RuntimeException {
+    public TenantNotFoundException(String msg) {
+        super(msg);
+        log.error("TenantNotFoundException : {}", msg);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/EmptyFileException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class EmptyFileException extends RuntimeException {
+    public EmptyFileException(String message) {
+        super(message);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/EmailSendFailedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class EmailSendFailedException extends RuntimeException {
+
+    public EmailSendFailedException(String message) {
+        super(message);
+        log.info("EmailSendFailedException : {}",message);
+
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/UnauthorizedException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class UnauthorizedException extends RuntimeException {
+    public UnauthorizedException(String s) {
+    super(s);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/exception/GlobalExceptionHandler.java
+// ==========================================
+    package com.insurancefraud.common.exception;
+
+
+    import io.jsonwebtoken.JwtException;
+    import jakarta.servlet.http.HttpServletRequest;
+    import org.springframework.http.HttpStatus;
+    import org.springframework.http.ResponseEntity;
+    import org.springframework.security.authentication.BadCredentialsException;
+    import org.springframework.web.HttpRequestMethodNotSupportedException;
+    import org.springframework.web.bind.MethodArgumentNotValidException;
+    import org.springframework.web.bind.annotation.ExceptionHandler;
+    import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+    import java.io.IOException;
+    import java.time.LocalDateTime;
+    import java.util.stream.Collectors;
+
+    @RestControllerAdvice
+    public class GlobalExceptionHandler {
+
+        private ResponseEntity<ApiError> buildErrorResponse(
+                HttpStatus status, String error,String message , HttpServletRequest request){
+            ApiError apiError = new ApiError(
+                    LocalDateTime.now(),
+                    status.value(),
+                    error,
+                    message
+                    ,
+                    request.getRequestURI()
+            );
+            return new ResponseEntity<>(apiError,status);
+        }
+
+        @ExceptionHandler(UserAlreadyExistsException.class)
+        public ResponseEntity<ApiError> handleUserExists(UserAlreadyExistsException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request);
+        }
+        @ExceptionHandler(AccountDeletedException.class)
+        public ResponseEntity<ApiError> handleAccountDeleted(
+                AccountDeletedException ex,
+                HttpServletRequest request
+        ){
+            return buildErrorResponse(
+                    HttpStatus.CONFLICT,
+                    "Conflict",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(TenantNotFoundException.class)
+        public ResponseEntity<ApiError> handleTenantNotFound(
+                TenantNotFoundException ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.NOT_FOUND,
+                    "Tenant Not Found",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
+            String message = ex.getBindingResult()
+                    .getFieldErrors()
+                    .stream()
+                    .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                    .collect(Collectors.joining(", "));
+
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", message, request);
+        }
+
+        @ExceptionHandler(RoleNotFoundException.class)
+        public ResponseEntity<ApiError> handleRoleNotFound(
+                RoleNotFoundException ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.NOT_FOUND,
+                    "Role Not Found",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(UserNotFoundException.class)
+        public ResponseEntity<ApiError> handleUserNotFound(
+                UserNotFoundException ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.NOT_FOUND,
+                    "User Not Found",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ApiError> handleIllegalArgument(
+                IllegalArgumentException ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.BAD_REQUEST,
+                    "Bad Request",
+                    ex.getMessage(),
+                    request
+            );
+        }
+        @ExceptionHandler(EmailNotVerifiedException.class)
+        public ResponseEntity<ApiError> handleBadCredentials(EmailNotVerifiedException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized",ex.getMessage() , request);
+        }
+
+
+
+        @ExceptionHandler(EmailAlreadyVerifiedException.class)
+        public ResponseEntity<ApiError> handleBadCredentials(EmailAlreadyVerifiedException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request);
+        }
+
+
+
+
+        @ExceptionHandler(EmailSendFailedException.class)
+        public ResponseEntity<ApiError> handleEmailSendFailed(
+                EmailSendFailedException ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Email Error",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+
+        @ExceptionHandler({
+                JwtException.class,
+                TokenExpiredException.class,
+                TokenNotFoundException.class,
+                TokenAlreadyRevokedException.class
+        })
+        public ResponseEntity<ApiError> handleTokenExceptions(Exception ex, HttpServletRequest request) {
+            String errorLabel = "Security Error";
+            if (ex instanceof TokenExpiredException) errorLabel = "Token Expired";
+            if (ex instanceof TokenAlreadyRevokedException) errorLabel = "Token Revoked";
+
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, errorLabel, ex.getMessage(), request);
+        }
+
+
+
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ApiError> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(BadCredentialsException.class)
+        public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid email or password", request);
+        }
+
+        @ExceptionHandler(ResourceNotFoundException.class)
+        public ResponseEntity<ApiError> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.NOT_FOUND, "Resource Not Found", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(InvalidMimeTypeException.class)
+        public ResponseEntity<ApiError> handleInvalidMimeType(InvalidMimeTypeException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported Media Type", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(EmptyFileException.class)
+        public ResponseEntity<ApiError> handleEmptyFile(EmptyFileException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(UnauthorizedException.class)
+        public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage(), request);
+        }
+
+        @ExceptionHandler(FileStorageException.class)
+        public ResponseEntity<ApiError> handleFileStorageException(FileStorageException ex, HttpServletRequest request) {
+            return buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Storage Error",
+                    ex.getMessage(),
+                    request
+            );
+        }
+
+        @ExceptionHandler(InvalidFileException.class)
+        public ResponseEntity<ApiError> handleInvalidFile(InvalidFileException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+        }
+
+
+
+
+        @ExceptionHandler(IOException.class)
+        public ResponseEntity<ApiError> handleIOException(IOException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "IO Error", ex.getMessage(), request);
+        }
+
+
+
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiError> handleGlobalException(
+                Exception ex,
+                HttpServletRequest request
+        ) {
+            return buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Internal Server Error",
+                    ex.getMessage(),
+                    request
+            );
+        }
+    }
+
+
+// ==========================================
+// FILE: ./common/exception/TokenExpiredException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class TokenExpiredException extends RuntimeException{
+    public TokenExpiredException(String msg){
+        super(msg);
+    }
+}
+
+// ==========================================
+// FILE: ./common/exception/InvalidFileException.java
+// ==========================================
+package com.insurancefraud.common.exception;
+
+public class InvalidFileException extends RuntimeException {
+    public InvalidFileException(String message) {
+        super(message);
+    }
+}
+
+
+// ==========================================
+// FILE: ./common/payload/ApiResponse.java
+// ==========================================
+package com.insurancefraud.common.payload;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.Instant;
+
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
+public class ApiResponse<T> {
+    private boolean success;
+    private String message;
+    private int status;
+    private Instant timestamp;
+    private T data;
+
+}

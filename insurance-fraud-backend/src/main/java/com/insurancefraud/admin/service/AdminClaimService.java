@@ -26,6 +26,11 @@ public interface AdminClaimService {
             ClaimSortField sortBy,
             String sortDir
     );
+
+    com.insurancefraud.claim.dto.ClaimDetailResponseDto getClaimById(Long claimId);
+    List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> getClaimDocuments(Long claimId);
+    org.springframework.core.io.Resource downloadDocument(Long documentId);
+    com.insurancefraud.entity.ClaimDocument getClaimDocumentById(Long documentId);
 }
 
 

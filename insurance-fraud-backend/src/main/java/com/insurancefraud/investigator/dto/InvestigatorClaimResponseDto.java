@@ -21,5 +21,7 @@ public class InvestigatorClaimResponseDto {
         private ClaimStatus claimStatus;
         private FraudStatus fraudStatus;
         private Instant createdAt;
+        private Instant incidentDate;
         private String incidentCity;
+        private String customerName;
 }

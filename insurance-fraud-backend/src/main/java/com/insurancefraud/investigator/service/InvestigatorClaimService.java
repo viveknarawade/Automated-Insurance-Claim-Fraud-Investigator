@@ -1,13 +1,19 @@
 package com.insurancefraud.investigator.service;
 
-import com.insurancefraud.investigator.dto.InvestigatorClaimResponseDto;
-import com.insurancefraud.investigator.dto.InvestigatorClaimReviewRequestDto;
-import com.insurancefraud.investigator.dto.InvestigatorClaimReviewResponseDto;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.investigator.dto.*;
 
 import java.util.List;
 
 public interface InvestigatorClaimService {
-    List<InvestigatorClaimResponseDto> getAssignedClaimsForInvestigator();
+    PaginatedInvestigatorClaimResponseDto getAssignedClaimsForInvestigator(
+            int pageNumber,
+            int pageSize,
+            ClaimSortField sortBy,
+            String sortDir
+    );
 
     InvestigatorClaimReviewResponseDto reviewClaimById(Long claimId, InvestigatorClaimReviewRequestDto requestDto);
+
+    InvestigatorClaimDetailsResponseDto getClaimDetails(Long claimId);
 }

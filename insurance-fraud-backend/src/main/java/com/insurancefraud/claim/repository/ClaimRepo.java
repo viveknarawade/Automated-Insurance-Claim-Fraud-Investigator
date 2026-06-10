@@ -37,7 +37,7 @@ public interface ClaimRepo extends JpaRepository<Claim, Long> {
     );
 
 
-    List<Claim> findByAssignedInvestigatorAndIsDeletedFalse(User investigator);
+    Page<Claim> findByAssignedInvestigatorAndIsDeletedFalse(User investigator, Pageable pageable);
 
     Optional<Claim> findByClaimIdAndAssignedInvestigatorAndClaimStatusAndIsDeletedFalse(Long claimId, User investigator, ClaimStatus claimStatus);
 
@@ -56,4 +56,8 @@ public interface ClaimRepo extends JpaRepository<Claim, Long> {
             String tenantCode,
             Pageable pageable
     );
+
+    Long countByAssignedInvestigatorAndFraudStatusNotAndIsDeletedFalse(User investigator, FraudStatus fraudStatus);
+
+    Optional<Claim> findByClaimIdAndAssignedInvestigatorAndIsDeletedFalse(Long claimId, User investigator);
 }

@@ -1,14 +1,25 @@
 package com.insurancefraud.investigator.controller;
 
+import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.payload.ApiResponse;
-import com.insurancefraud.investigator.dto.InvestigatorClaimReviewRequestDto;
-import com.insurancefraud.investigator.dto.InvestigatorClaimReviewResponseDto;
-import com.insurancefraud.investigator.dto.InvestigatorClaimResponseDto;
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.enums.ClaimSortField;
+import com.insurancefraud.investigator.dto.*;
 import com.insurancefraud.investigator.service.InvestigatorClaimService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
+import com.insurancefraud.service.StorageService;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.List;
 
@@ -17,26 +28,42 @@ import java.util.List;
 public class InvestigatorClaimController {
 
     private final InvestigatorClaimService investigatorClaimService;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final StorageService storageService;
 
-    public InvestigatorClaimController(InvestigatorClaimService investigatorClaimService) {
+    public InvestigatorClaimController(InvestigatorClaimService investigatorClaimService,ClaimDocumentRepo claimDocumentRepo, StorageService storageService) {
         this.investigatorClaimService = investigatorClaimService;
+        this.claimDocumentRepo =claimDocumentRepo;
+        this.storageService = storageService;
     }
 
-    @GetMapping("/claims")
-    public ResponseEntity<ApiResponse<List<InvestigatorClaimResponseDto>>> getAssignedClaims() {
-        List<InvestigatorClaimResponseDto> data = investigatorClaimService.getAssignedClaimsForInvestigator();
 
-        ApiResponse<List<InvestigatorClaimResponseDto>> response =
+    @GetMapping("/claims")
+    public ResponseEntity<ApiResponse<PaginatedInvestigatorClaimResponseDto>> getAssignedClaims(
+            @RequestParam(defaultValue = "0") int pageNumber,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "CREATED_AT") ClaimSortField sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+
+        PaginatedInvestigatorClaimResponseDto data =
+                investigatorClaimService.getAssignedClaimsForInvestigator(
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        sortDir
+                );
+
+        return ResponseEntity.ok(
                 new ApiResponse<>(
                         true,
                         "Assigned claims retrieved successfully",
                         200,
                         Instant.now(),
                         data
-                );
-        return ResponseEntity.ok(response);
+                )
+        );
     }
-
 
     @PatchMapping("/claims/{claimId}/review")
     public ResponseEntity<ApiResponse<InvestigatorClaimReviewResponseDto>> reviewClaim(
@@ -60,4 +87,50 @@ public class InvestigatorClaimController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/claims/{claimId}")
+    public ResponseEntity<ApiResponse<InvestigatorClaimDetailsResponseDto>>
+    getClaimDetails(
+            @PathVariable Long claimId
+    ) {
+        InvestigatorClaimDetailsResponseDto claimDetails =
+                investigatorClaimService.getClaimDetails(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim details retrieved successfully",
+                        200,
+                        Instant.now(),
+                        claimDetails
+                )
+        );
+
+
+    }
+
+    @GetMapping("/documents/{claimDocId}/view")
+    public ResponseEntity<Resource> viewDocument(
+            @PathVariable Long claimDocId
+    ) {
+
+        ClaimDocument document =
+                claimDocumentRepo
+                        .findByClaimDocIdAndIsDeletedFalse(claimDocId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Document not found"));
+
+        Resource resource = storageService.downloadFile(document.getFileUrl());
+        
+        String mimeType = document.getMimeType();
+        if (mimeType == null || mimeType.isBlank()) {
+            mimeType = "application/octet-stream";
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + document.getOriginalFileName() + "\"")
+                .contentLength(document.getFileSize())
+                .body(resource);
+    }
 }
+

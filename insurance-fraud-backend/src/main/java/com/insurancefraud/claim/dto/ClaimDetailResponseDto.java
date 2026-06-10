@@ -30,7 +30,7 @@ public class ClaimDetailResponseDto {
 
     private String description;
 
-    private LocalDateTime incidentDate;
+    private Instant incidentDate;
 
     private String incidentAddress;
 

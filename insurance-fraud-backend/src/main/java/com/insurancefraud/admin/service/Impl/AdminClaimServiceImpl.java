@@ -21,7 +21,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
+import com.insurancefraud.document.repository.ClaimDocumentRepo;
+import com.insurancefraud.service.StorageService;
+import com.insurancefraud.entity.ClaimDocument;
+import com.insurancefraud.common.exception.FileStorageException;
 @Service
 @Slf4j
 public class AdminClaimServiceImpl implements AdminClaimService {
@@ -30,12 +33,16 @@ public class AdminClaimServiceImpl implements AdminClaimService {
     private final UserRepo userRepo;
     private final ModelMapper mapper;
     private final ClaimRepo claimRepo;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final StorageService storageService;
 
-    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper) {
+    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper, ClaimDocumentRepo claimDocumentRepo, StorageService storageService) {
         this.currentUserService = currentUserService;
         this.userRepo = userRepo;
         this.claimRepo =claimRepo;
         this.mapper =mapper;
+        this.claimDocumentRepo = claimDocumentRepo;
+        this.storageService = storageService;
     }
 
     @Override
@@ -101,9 +108,15 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                     Long activeClaims = claimRepo.
                             countByAssignedInvestigatorAndClaimStatusNotAndIsDeletedFalse(investigator, ClaimStatus.CLOSED);
 
-                   return new InvestigatorsWorkloadResDto(
+                    Long reviewsCompleted = claimRepo.
+                            countByAssignedInvestigatorAndFraudStatusNotAndIsDeletedFalse(investigator, FraudStatus.PENDING_ANALYSIS);
+
+                    return new InvestigatorsWorkloadResDto(
                         investigator.getUserId(),
                         investigator.getFullName(),
+                        investigator.getEmail(),
+                        investigator.getStatus(),
+                        reviewsCompleted,
                         activeClaims
                       );
                 }
@@ -274,20 +287,36 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                         pageable
                 );
 
-
         List<ClaimSummaryResponseDto> dtoList =
                 claimPages.getContent()
                         .stream()
-                        .map(claim ->
-                                mapper.map(
-                                        claim,
-                                        ClaimSummaryResponseDto.class
-                                )
-                        )
+                        .map(claim -> {
+
+                            ClaimSummaryResponseDto dto =
+                                    mapper.map(
+                                            claim,
+                                            ClaimSummaryResponseDto.class
+                                    );
+
+                            dto.setCustomerName(
+                                    claim.getUser().getFullName()
+                            );
+
+                            dto.setCustomerEmail(
+                                    claim.getUser().getEmail()
+                            );
+
+                            dto.setInvestigatorName(
+                                    claim.getAssignedInvestigator() != null
+                                            ? claim.getAssignedInvestigator().getFullName()
+                                            : "Not Assigned"
+                            );
+
+                            return dto;
+                        })
                         .toList();
 
-
-        log.info("Retrieved {} claims for user {}", dtoList.size(), admin.getEmail());
+        log.info("Retrieved {} claims for admin {}", dtoList.size(), admin.getEmail());
         PaginatedAdminClaimResponseDto response = new PaginatedAdminClaimResponseDto();
         response.setContent(dtoList);
         response.setTotalElements(claimPages.getTotalElements());
@@ -301,6 +330,59 @@ public class AdminClaimServiceImpl implements AdminClaimService {
         response.setNextPage(claimPages.hasNext() ? (long) claimPages.getNumber() + 1 : null);
         response.setPreviousPage(claimPages.hasPrevious() ? (long) claimPages.getNumber() - 1 : null);
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.insurancefraud.claim.dto.ClaimDetailResponseDto getClaimById(Long claimId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        return mapper.map(claim, com.insurancefraud.claim.dto.ClaimDetailResponseDto.class);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> getClaimDocuments(Long claimId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
+
+        List<ClaimDocument> claimDocuments = claimDocumentRepo.findByClaim_ClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant());
+
+        return claimDocuments.stream()
+                .map(doc -> mapper.map(doc, com.insurancefraud.document.dto.ClaimDocumentsResponseDto.class))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource downloadDocument(Long documentId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        ClaimDocument document = claimDocumentRepo
+                .findByClaimDocIdAndTenantAndIsDeletedFalse(documentId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        org.springframework.core.io.Resource resource;
+        try {
+            resource = storageService.downloadFile(document.getFileUrl());
+        } catch (Exception e) {
+            log.error("File download failed: {}", e.getMessage());
+            throw new FileStorageException("Failed to download file", e);
+        }
+        log.info("Document {} downloaded by admin {}", document.getOriginalFileName(), admin.getEmail());
+        return resource;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClaimDocument getClaimDocumentById(Long documentId) {
+        User admin = currentUserService.getCurrentActiveUser();
+        return claimDocumentRepo
+                .findByClaimDocIdAndTenantAndIsDeletedFalse(documentId, admin.getTenant())
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
     }
 }
 

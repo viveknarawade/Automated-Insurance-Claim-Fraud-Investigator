@@ -12,12 +12,17 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
+
 public class ClaimSummaryResponseDto {
 
     private Long claimId;
 
     private String claimNumber;
+    private String customerName;
 
+    private String customerEmail;
+
+    private String investigatorName;
     private ClaimType claimType;
 
     private BigDecimal claimAmount;
@@ -26,7 +31,7 @@ public class ClaimSummaryResponseDto {
 
     private FraudStatus fraudStatus;
 
-    private LocalDateTime incidentDate;
+    private Instant incidentDate;
 
     private String incidentCity;
 

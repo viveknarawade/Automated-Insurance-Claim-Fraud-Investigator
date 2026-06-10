@@ -49,6 +49,11 @@ public class ClaimServiceImpl implements ClaimService {
     @Transactional
     @Override
     public ClaimSummaryResponseDto createClaim(ClaimRequestDto requestDto) {
+        // Validate incident_date is not null before processing
+        if (requestDto.getIncidentDate() == null) {
+            throw new IllegalArgumentException("Incident date cannot be null");
+        }
+
         User currentUser = currentUserService.getCurrentActiveUser();
 
         User user = userRepo.findById(currentUser.getUserId())

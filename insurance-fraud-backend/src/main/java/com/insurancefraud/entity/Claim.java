@@ -3,12 +3,12 @@ import com.insurancefraud.enums.ClaimStatus;
 import com.insurancefraud.enums.ClaimType;
 import com.insurancefraud.enums.FraudStatus;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -58,7 +58,8 @@ public class Claim {
     private String description;
 
     @Column(name = "incident_date",nullable = false)
-    private LocalDateTime incidentDate;
+    @NotNull(message = "Incident date is required")
+    private Instant incidentDate;
 
     @Column(name = "incident_address")
     private String incidentAddress;

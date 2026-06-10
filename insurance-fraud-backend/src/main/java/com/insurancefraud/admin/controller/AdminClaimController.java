@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.List;
 import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import com.insurancefraud.entity.ClaimDocument;
 
 @RequestMapping("/api/v1/admin")
 @RestController
@@ -142,6 +146,54 @@ public class AdminClaimController {
                 )
         );
     }
+
+    @GetMapping("/claims/{claimId}")
+    public ResponseEntity<ApiResponse<com.insurancefraud.claim.dto.ClaimDetailResponseDto>> getClaimById(
+            @PathVariable Long claimId
+    ) {
+        com.insurancefraud.claim.dto.ClaimDetailResponseDto data = adminClaimService.getClaimById(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim details retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @GetMapping("/claims/{claimId}/documents")
+    public ResponseEntity<ApiResponse<List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto>>> getClaimDocuments(
+            @PathVariable Long claimId
+    ) {
+        List<com.insurancefraud.document.dto.ClaimDocumentsResponseDto> data = adminClaimService.getClaimDocuments(claimId);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Claim documents retrieved successfully",
+                        HttpStatus.OK.value(),
+                        Instant.now(),
+                        data
+                )
+        );
+    }
+
+    @GetMapping("/documents/{documentId}/download")
+    public ResponseEntity<Resource> downloadDocument(
+            @PathVariable Long documentId
+    ) {
+        ClaimDocument document = adminClaimService.getClaimDocumentById(documentId);
+        Resource resource = adminClaimService.downloadDocument(documentId);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(document.getMimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getOriginalFileName() + "\"")
+                .contentLength(document.getFileSize())
+                .body(resource);
+    }
+
+
 }
 
 

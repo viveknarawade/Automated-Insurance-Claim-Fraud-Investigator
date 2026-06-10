@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @Setter
@@ -31,7 +31,7 @@ public class ClaimRequestDto {
     private String description;
 
     @NotNull(message = "Incident date is required")
-    private LocalDateTime incidentDate;
+    private Instant incidentDate;
 
     @NotBlank(message = "Incident address is required")
     @Size(max = 500)
