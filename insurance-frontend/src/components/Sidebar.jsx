@@ -19,10 +19,10 @@ const navsByRole = {
   customer: customerNavs,
   user: customerNavs, // backend sends role: 'USER'
   investigator: [
-    { to: "/investigator/dashboard", label: "Home", icon: LayoutDashboard, section: "Workspace" },
-    { to: "/investigator/queue", label: "Suspicious Queue", icon: ShieldAlert, section: "Workspace" },
-    { to: "/investigator/assignments", label: "My Assignments", icon: Inbox, section: "Workspace" },
-    { to: "/investigator/performance", label: "Performance", icon: BarChart3, section: "Insights" },
+    { to: "/investigator/dashboard", label: "Dashboard", icon: LayoutDashboard, section: "Overview" },
+    { to: "/investigator/claims", label: "Assigned Claims", icon: ShieldCheck, section: "Overview" },
+    { to: "/investigator/notifications", label: "Notifications", icon: Bell, section: "Account" },
+    { to: "/investigator/profile", label: "Profile", icon: UserCircle, section: "Account" },
   ],
   admin: [
     { to: "/admin/dashboard", label: "Overview", icon: LayoutDashboard, section: "Operations" },
@@ -34,6 +34,7 @@ const navsByRole = {
     { to: "/admin/rules", label: "Fraud Rules", icon: Settings2, section: "Configuration" },
     { to: "/admin/workflow", label: "Workflow", icon: Workflow, section: "Configuration" },
     { to: "/admin/logs", label: "System Logs", icon: ScrollText, section: "Configuration" },
+    { to: "/admin/profile", label: "Profile", icon: UserCircle, section: "Account" },
   ],
 }
 
@@ -105,14 +106,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* System status */}
-      <div className="px-3 pb-3">
-        <div className="rounded-lg bg-slate-50 px-3 py-2.5 border border-slate-100">
-          <p className="text-xs font-medium text-slate-700">System status</p>
-          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-700" />
-            All services operational
-          </div>
+      {/* Sidebar Footer */}
+      <div className="border-t border-slate-100 p-4 mt-auto">
+        <div className="rounded-xl bg-slate-50 p-4 border border-slate-100/80">
+          <p className="text-[11px] font-bold tracking-wider text-slate-800 uppercase">
+            {roleKey === "admin" ? "ADMIN PORTAL" : roleKey === "investigator" ? "INVESTIGATOR PORTAL" : "CUSTOMER PORTAL"}
+          </p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            FG-{new Date().getFullYear()}
+          </p>
         </div>
       </div>
 

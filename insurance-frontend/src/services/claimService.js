@@ -9,7 +9,7 @@ import api from "./api";
  */
 export const getAllClaims = (pageNo = 0, pageSize = 10, sortBy = "CREATED_AT", sortDir = "DESC") => {
   return api.get("/claims/my", {
-    params: { pageNo, pageSize, sortBy, sortDir },
+    params: { pageNumber: pageNo, pageSize, sortBy, sortDir },
   });
 };
 

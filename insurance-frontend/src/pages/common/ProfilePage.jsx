@@ -2,13 +2,39 @@ import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/DashboardLayout";
 import { getUser, getRefreshToken, clearAuthData } from "../../utils/auth";
 import { logout } from "../../services/authService";
-import { User, Mail, Shield, Building, CheckCircle, Calendar, Edit2, Lock, LogOut, Trash2 } from "lucide-react";
+import { User, Mail, Shield, Building, CheckCircle, Calendar, Edit2, Lock, LogOut, Trash2, X } from "lucide-react";
 import { useState } from "react";
+
+function ActionModal({ title, children, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const user = getUser();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [modal, setModal] = useState(null); // null, 'edit', 'password'
+
+  // Form states
+  const [fullName, setFullName] = useState(user?.fullName || "");
+  const [email, setEmail] = useState(user?.email || "");
+
+  // Password states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Derive display values
   const initials = user?.fullName?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "??";
@@ -24,6 +50,21 @@ export default function ProfilePage() {
       clearAuthData();
       navigate("/");
     }
+  };
+
+  const handleSaveProfile = (e) => {
+    e.preventDefault();
+    // Implementation would call API
+    setModal(null);
+  };
+
+  const handleUpdatePassword = (e) => {
+    e.preventDefault();
+    // Implementation would call API
+    setModal(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
   };
 
   const InfoRow = ({ icon: Icon, label, value }) => (
@@ -58,7 +99,7 @@ export default function ProfilePage() {
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-slate-100 text-slate-700">
                   {user?.role || "CUSTOMER"}
                 </span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-slate-100 text-slate-700">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700">
                   Active
                 </span>
               </div>
@@ -78,11 +119,11 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <button className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700">
+          <button onClick={() => setModal('edit')} className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700">
             <Edit2 className="w-4 h-4 text-slate-400" />
             Edit Profile
           </button>
-          <button className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700">
+          <button onClick={() => setModal('password')} className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-semibold text-slate-700">
             <Lock className="w-4 h-4 text-slate-400" />
             Change Password
           </button>
@@ -95,6 +136,55 @@ export default function ProfilePage() {
             Delete Account
           </button>
         </div>
+
+        {/* Modals */}
+        {modal === 'edit' && (
+          <ActionModal title="Edit Profile" onClose={() => setModal(null)}>
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name</label>
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 cursor-not-allowed focus:outline-none" disabled />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </ActionModal>
+        )}
+
+        {modal === 'password' && (
+          <ActionModal title="Change Password" onClose={() => setModal(null)}>
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Password</label>
+                <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">New Password</label>
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirm New Password</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-colors">Update Password</button>
+              </div>
+            </form>
+          </ActionModal>
+        )}
+
       </div>
     </DashboardLayout>
   );

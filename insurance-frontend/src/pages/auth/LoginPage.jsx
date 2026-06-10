@@ -43,7 +43,7 @@ function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-11 h-11 bg-blue-800 rounded-xl mb-3">
+          <div className="inline-flex items-center justify-center w-11 h-11 bg-black rounded-xl mb-3">
             <ShieldCheck size={22} className="text-white" />
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900">

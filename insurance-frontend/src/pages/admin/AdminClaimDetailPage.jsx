@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../../components/DashboardLayout";
-import { getClaimById, getAllUnsignedClaims } from "../../services/claimService";
 import {
   getInvestigatorsWorkload,
   assignInvestigator,
   approveClaim,
   rejectClaim,
+  getAdminClaimById,
+  getAdminClaimDocuments,
+  downloadAdminDocument
 } from "../../services/adminService";
-import { getClaimDocuments, downloadDocument } from "../../services/documentService";
 import {
   ArrowLeft, FileText, MapPin, Calendar, IndianRupee,
   Loader2, AlertTriangle, CheckCircle2, Clock, XCircle,
@@ -22,7 +23,14 @@ function pretty(str) {
 }
 function fmtDateTime(raw) {
   if (!raw) return "—";
-  return new Date(raw).toLocaleString("en-IN", {
+  let d;
+  if (Array.isArray(raw)) {
+    d = new Date(raw[0], raw[1] - 1, raw[2], raw[3] || 0, raw[4] || 0, raw[5] || 0);
+  } else {
+    d = new Date(raw);
+  }
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
@@ -49,9 +57,9 @@ function StatusBadge({ status, size = "md" }) {
 
 function FraudBadge({ status }) {
   const map = {
-    SUSPICIOUS:      { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
-    CONFIRMED_FRAUD: { cls: "bg-red-50 text-red-700 ring-red-200" },
-    CLEARED:         { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
+    SUSPECTED:      { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
+    CONFIRMED: { cls: "bg-red-50 text-red-700 ring-red-200" },
+    CLEAR:         { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
   };
   const cfg = map[status] || { cls: "bg-slate-50 text-slate-500 ring-slate-200" };
   return (
@@ -104,9 +112,9 @@ export default function AdminClaimDetailPage() {
     try {
       setLoading(true); setError("");
       const [claimRes, invRes, docsRes] = await Promise.all([
-        getClaimById(claimId),
+        getAdminClaimById(claimId),
         getInvestigatorsWorkload(),
-        getClaimDocuments(claimId).catch(() => ({ data: { data: [] } })),
+        getAdminClaimDocuments(claimId).catch(() => ({ data: { data: [] } })),
       ]);
       setClaim(claimRes.data?.data || claimRes.data);
       setInvestigators(invRes.data?.data || []);
@@ -149,7 +157,7 @@ export default function AdminClaimDetailPage() {
   const handleDownload = async (doc) => {
     try {
       setDownloading(doc.claimDocId);
-      const res = await downloadDocument(doc.claimDocId);
+      const res = await downloadAdminDocument(doc.claimDocId);
       const url = URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url; a.download = doc.originalFileName || `doc-${doc.claimDocId}`; a.click();
@@ -160,13 +168,7 @@ export default function AdminClaimDetailPage() {
 
   return (
     <DashboardLayout>
-      {/* Back */}
-      <div className="mb-5">
-        <button onClick={() => navigate("/admin/dashboard")}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
-          <ArrowLeft className="h-4 w-4" /> Back to Dashboard
-        </button>
-      </div>
+      {/* Back button removed */}
 
       {loading ? (
         <div className="flex items-center justify-center py-24 gap-2 text-slate-400">

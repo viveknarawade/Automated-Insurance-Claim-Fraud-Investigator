@@ -260,7 +260,11 @@ export default function SubmitNewClaim() {
     setErrors({});
     setLoading(true);
     try {
-      const payload = { ...form, claimAmount: Number(form.claimAmount) };
+      const payload = { 
+        ...form, 
+        claimAmount: Number(form.claimAmount),
+        incidentDate: new Date(form.incidentDate).toISOString()
+      };
       const res = await addClaim(payload);
       setSubmitted(res.data?.data);
     } catch (err) {

@@ -27,7 +27,14 @@ const MAX_MB = 10;
 
 function fmtDateTime(raw) {
   if (!raw) return "—";
-  return new Date(raw).toLocaleString("en-IN", {
+  let d;
+  if (Array.isArray(raw)) {
+    d = new Date(raw[0], raw[1] - 1, raw[2], raw[3] || 0, raw[4] || 0, raw[5] || 0);
+  } else {
+    d = new Date(raw);
+  }
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
@@ -56,9 +63,9 @@ function StatusBadge({ status, size = "md" }) {
 
 function FraudBadge({ status }) {
   const map = {
-    SUSPICIOUS: { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
-    CONFIRMED_FRAUD: { cls: "bg-red-50 text-red-700 ring-red-200" },
-    CLEARED: { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
+    SUSPECTED: { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
+    CONFIRMED: { cls: "bg-red-50 text-red-700 ring-red-200" },
+    CLEAR: { cls: "bg-slate-50 text-slate-900 ring-slate-200" },
   };
   const cfg = map[status] || { cls: "bg-slate-50 text-slate-500 ring-slate-200" };
   return (

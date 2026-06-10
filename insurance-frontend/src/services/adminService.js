@@ -25,3 +25,15 @@ export const getAllClaimsAdmin = (pageNo = 0, pageSize = 20, sortBy = "CREATED_A
   api.get("/admin/claims", {
     params: { pageNumber: pageNo, pageSize, sortBy, sortDir },
   });
+
+/** Get single claim by ID for admin */
+export const getAdminClaimById = (claimId) =>
+  api.get(`/admin/claims/${claimId}`);
+
+/** Get documents for a claim for admin */
+export const getAdminClaimDocuments = (claimId) =>
+  api.get(`/admin/claims/${claimId}/documents`);
+
+/** Download document for admin */
+export const downloadAdminDocument = (documentId) =>
+  api.get(`/admin/documents/${documentId}/download`, { responseType: "blob" });

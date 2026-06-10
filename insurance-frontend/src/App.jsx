@@ -18,6 +18,8 @@ import AdminFraudRulesPage from "./pages/admin/AdminFraudRulesPage";
 import AdminWorkflowPage from "./pages/admin/AdminWorkflowPage";
 import AdminLogsPage from "./pages/admin/AdminLogsPage";
 import InvestigatorDashboard from "./pages/investigator/InvestigatorDashboard";
+import InvestigatorClaimsPage from "./pages/investigator/InvestigatorClaimsPage";
+import InvestigatorClaimDetailPage from "./pages/investigator/InvestigatorClaimDetailPage";
 
 function App() {
   return (
@@ -44,9 +46,14 @@ function App() {
       <Route path="/admin/rules" element={<AdminFraudRulesPage />} />
       <Route path="/admin/workflow" element={<AdminWorkflowPage />} />
       <Route path="/admin/logs" element={<AdminLogsPage />} />
+      <Route path="/admin/profile" element={<ProfilePage />} />
 
       {/* Investigator */}
       <Route path="/investigator/dashboard" element={<InvestigatorDashboard />} />
+      <Route path="/investigator/claims" element={<InvestigatorClaimsPage />} />
+      <Route path="/investigator/claims/:claimId" element={<InvestigatorClaimDetailPage />} />
+      <Route path="/investigator/notifications" element={<NotificationPage />} />
+      <Route path="/investigator/profile" element={<ProfilePage />} />
     </Routes>
   );
 }
