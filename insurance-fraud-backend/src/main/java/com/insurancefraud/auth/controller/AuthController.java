@@ -1,6 +1,7 @@
 package com.insurancefraud.auth.controller;
 
 import com.insurancefraud.auth.dto.*;
+import com.insurancefraud.auth.service.RefreshTokenService;
 import com.insurancefraud.common.payload.ApiResponse;
 import com.insurancefraud.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +23,7 @@ import java.time.Instant;
 public class AuthController {
 
     private final AuthService authService;
+    private final RefreshTokenService refreshTokenService;
 
     @Operation(summary = "Register user")
     @PostMapping("/register")
@@ -150,4 +152,28 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<
+            ApiResponse<RefreshTokenResponseDto>
+            > refreshToken(
+
+            @RequestBody
+            RefreshTokenRequestDto request
+    ) {
+
+        RefreshTokenResponseDto data =
+                refreshTokenService.refreshToken(
+                        request
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Token refreshed successfully",
+                        200,
+                        Instant.now(),
+                        data
+                )
+        );
+    }
 }
