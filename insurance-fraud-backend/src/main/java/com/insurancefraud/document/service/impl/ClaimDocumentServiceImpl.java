@@ -13,8 +13,8 @@ import com.insurancefraud.enums.DocumentStatus;
 import com.insurancefraud.enums.DocumentType;
 import com.insurancefraud.enums.StorageProvider;
 import com.insurancefraud.enums.SupportedDocumentType;
-import com.insurancefraud.repository.*;
-import com.insurancefraud.service.*;
+import com.insurancefraud.storage.dto.StoredFileResult;
+import com.insurancefraud.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -36,10 +36,11 @@ public class ClaimDocumentServiceImpl implements ClaimDocumentService {
 
     private final CurrentUserService currentUserService;
     private final StorageService storageService;
-    private final UserRepo userRepo;
     private final ClaimRepo claimRepo;
     private final ClaimDocumentRepo claimDocumentRepo;
     private final ModelMapper mapper;
+    private  StoredFileResult storedFileResult;
+
 
     @Transactional
     @Override
@@ -52,34 +53,23 @@ public class ClaimDocumentServiceImpl implements ClaimDocumentService {
         if (!claim.getUser().getUserId().equals(user.getUserId())) {
             throw new UnauthorizedException("You cannot upload documents to this claim");
         }
-
-        String originalFileName = file.getOriginalFilename();
-
-        if (originalFileName == null || originalFileName.isBlank()) {
-            throw new InvalidFileException("Invalid file name");
-        }
-
-        String extension = getFileExtension(originalFileName);
-        String storedFileName = UUID.randomUUID() + (extension.isBlank() ? "" : "." + extension);
-        String storagePath;
-        try (InputStream inputStream = file.getInputStream()){
-            storagePath = storageService.storeFile(inputStream, storedFileName);
+        try{
+            storedFileResult= storageService.storeFile(file, claim);
         } catch (IOException e) {
             log.error("File upload failed: {}", e.getMessage());
             throw new FileStorageException("Failed to store file", e);
         }
-
         ClaimDocument claimDocument = new ClaimDocument();
         claimDocument.setTenant(user.getTenant());
         claimDocument.setClaim(claim);
         claimDocument.setUploadedBy(user);
         claimDocument.setDocumentType(documentType);
-        claimDocument.setFileName(storedFileName);
-        claimDocument.setOriginalFileName(originalFileName);
-        claimDocument.setFileUrl(storagePath);
-        claimDocument.setStorageProvider(StorageProvider.LOCAL);
-        claimDocument.setMimeType(file.getContentType());
-        claimDocument.setFileSize(file.getSize());
+        claimDocument.setFileName(storedFileResult.getStorageKey());
+        claimDocument.setOriginalFileName(storedFileResult.getOriginalName());
+        claimDocument.setFileUrl(storedFileResult.getFileUrl());
+        claimDocument.setStorageProvider(storedFileResult.getProvider());
+        claimDocument.setMimeType(storedFileResult.getMimeType());
+        claimDocument.setFileSize(storedFileResult.getFileSize());
         claimDocument.setDocumentStatus(DocumentStatus.ACTIVE);
         claimDocument = claimDocumentRepo.save(claimDocument);
         log.info("Document uploaded successfully for claim {}", claim.getClaimNumber());
@@ -178,9 +168,6 @@ public class ClaimDocumentServiceImpl implements ClaimDocumentService {
         }
     }
 
-    private String getFileExtension(String fileName) {
-        int lastDot = fileName.lastIndexOf('.');
-        return lastDot == -1 ? "" : fileName.substring(lastDot + 1);
-    }
+
 
 }

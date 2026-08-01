@@ -1,4 +1,4 @@
-package com.insurancefraud.common.config;
+package com.insurancefraud.storage.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 @Configuration
-public class StorageConfig {
+public class LocalStorageConfig {
 
     @Value("${file.upload-dir}")
     private String uploadDir;

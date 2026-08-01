@@ -9,19 +9,13 @@ import com.insurancefraud.investigator.dto.*;
 import com.insurancefraud.investigator.service.InvestigatorClaimService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
-import com.insurancefraud.service.StorageService;
+import com.insurancefraud.storage.service.StorageService;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.List;
 
 @RequestMapping("/api/v1/investigator")
 @RestController

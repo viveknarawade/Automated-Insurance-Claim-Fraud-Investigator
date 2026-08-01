@@ -19,6 +19,7 @@ public interface ClaimDocumentService {
     List<ClaimDocumentsResponseDto> getClaimDocumentsByClaimId(Long claimId);
 
     ClaimDocument getClaimDocumentById(Long documentId);
+
     void deleteClaimDocument(Long documentId);
 
     Resource downloadDocument(Long documentId);

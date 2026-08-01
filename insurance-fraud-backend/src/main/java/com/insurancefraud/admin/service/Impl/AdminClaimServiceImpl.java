@@ -3,7 +3,6 @@ package com.insurancefraud.admin.service.Impl;
 import com.insurancefraud.admin.dto.*;
 import com.insurancefraud.claim.dto.ClaimSummaryResponseDto;
 import com.insurancefraud.admin.service.AdminClaimService;
-import com.insurancefraud.claim.dto.PaginatedClaimResponse;
 import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.security.CurrentUserService;
 import com.insurancefraud.entity.Claim;
@@ -11,9 +10,7 @@ import com.insurancefraud.enums.*;
 import com.insurancefraud.util.PaginationUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import com.insurancefraud.entity.User;
 import com.insurancefraud.claim.repository.ClaimRepo;
@@ -23,7 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import com.insurancefraud.document.repository.ClaimDocumentRepo;
-import com.insurancefraud.service.StorageService;
+import com.insurancefraud.storage.service.StorageService;
 import com.insurancefraud.entity.ClaimDocument;
 import com.insurancefraud.common.exception.FileStorageException;
 @Service
