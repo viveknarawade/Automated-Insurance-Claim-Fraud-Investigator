@@ -12,5 +12,8 @@ public interface JwtService {
 
     Long extractUserId(String token);
 
+    // Only accepts ACCESS tokens — rejects email/reset/refresh tokens used as Bearer
+    Long extractUserIdFromAccessToken(String token);
+
     String generatePasswordResetToken(User user);
 }

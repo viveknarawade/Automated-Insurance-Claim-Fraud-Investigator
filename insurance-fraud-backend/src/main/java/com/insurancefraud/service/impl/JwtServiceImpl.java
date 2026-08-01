@@ -76,6 +76,27 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
+    public Long extractUserIdFromAccessToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSignKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        // Access tokens have NO 'type' claim
+        // Email/Refresh/Reset tokens all have a 'type' claim → reject them
+        String type = claims.get("type", String.class);
+        if (type != null) {
+            throw new io.jsonwebtoken.JwtException(
+                "Invalid token type for authentication. Expected access token, got: " + type
+            );
+        }
+
+        return Long.parseLong(claims.getSubject());
+    }
+
+
+    @Override
     public String generatePasswordResetToken(User user) {
         return Jwts.builder()
                 .subject(String.valueOf(user.getUserId()))

@@ -1,6 +1,7 @@
 package com.insurancefraud.common.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,6 +20,9 @@ import java.util.List;
 public class WebSecurityConfig {
 
     private final JwtFilter jwtFilter;
+
+    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -56,11 +60,16 @@ public class WebSecurityConfig {
 
                         ).permitAll()
 
-                        // AUTHENTICATED
+                        // AUTHENTICATED (any logged-in user)
                         .requestMatchers(
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/delete-account"
                         ).authenticated()
+
+                        // ROLE-BASED ACCESS CONTROL
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/investigator/**").hasRole("INVESTIGATOR")
+                        .requestMatchers("/api/v1/claims/**").hasRole("USER")
 
                         .anyRequest().authenticated()
                 )
@@ -77,7 +86,7 @@ public class WebSecurityConfig {
                 new CorsConfiguration();
 
         configuration.setAllowedOriginPatterns(
-                List.of("*")
+                List.of(allowedOrigins.split(","))
         );
 
         configuration.setAllowedMethods(

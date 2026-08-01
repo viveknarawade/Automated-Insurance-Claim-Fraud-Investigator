@@ -9,54 +9,61 @@ import com.insurancefraud.entity.RefreshToken;
 import com.insurancefraud.entity.User;
 import com.insurancefraud.service.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class RefreshTokenServiceImpl
-        implements RefreshTokenService {
+public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private final RefreshTokenRepo refreshTokenRepo;
-
     private final JwtService jwtService;
 
     @Override
-    public RefreshTokenResponseDto refreshToken(
-            RefreshTokenRequestDto request
-    ) {
+    public RefreshTokenResponseDto refreshToken(RefreshTokenRequestDto request) {
 
-        RefreshToken refreshToken =
-                refreshTokenRepo
-                        .findByToken(
-                                request.getRefreshToken()
-                        )
-                        .orElseThrow(() ->
-                                new UnauthorizedException(
-                                        "Invalid refresh token"
-                                )
-                        );
+        RefreshToken oldToken = refreshTokenRepo
+                .findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
-        if (refreshToken.getExpiresAt()
-                .isBefore(Instant.now())) {
-
-            refreshTokenRepo.delete(refreshToken);
-
-            throw new UnauthorizedException(
-                    "Refresh token expired"
-            );
+        // FIX #4 — Check revocation BEFORE checking expiry
+        // A logged-out user's token is revoked; must not generate new access token
+        if (oldToken.isRevoked()) {
+            throw new UnauthorizedException("Refresh token has been revoked. Please log in again.");
         }
 
-        User user = refreshToken.getUser();
+        // Check expiry
+        if (oldToken.getExpiresAt().isBefore(Instant.now())) {
+            refreshTokenRepo.delete(oldToken);
+            throw new UnauthorizedException("Refresh token expired. Please log in again.");
+        }
 
-        String newAccessToken =
-                jwtService.generateToken(user);
+        User user = oldToken.getUser();
 
-        return new RefreshTokenResponseDto(
-                newAccessToken
-        );
+        // FIX #3 — Refresh Token Rotation
+        // Revoke the OLD token so it can never be reused
+        oldToken.setRevoked(true);
+        refreshTokenRepo.save(oldToken);
+
+        // Issue brand-new refresh token
+        String newRefreshTokenString = jwtService.generateRefreshToken(user);
+        RefreshToken newRefreshToken = new RefreshToken();
+        newRefreshToken.setUser(user);
+        newRefreshToken.setToken(newRefreshTokenString);
+        newRefreshToken.setExpiresAt(Instant.now().plus(Duration.ofDays(7)));
+        refreshTokenRepo.save(newRefreshToken);
+
+        // Issue new access token
+        String newAccessToken = jwtService.generateToken(user);
+
+        log.info("Refresh token rotated for user {}", user.getEmail());
+
+        return new RefreshTokenResponseDto(newAccessToken, newRefreshTokenString);
     }
 }

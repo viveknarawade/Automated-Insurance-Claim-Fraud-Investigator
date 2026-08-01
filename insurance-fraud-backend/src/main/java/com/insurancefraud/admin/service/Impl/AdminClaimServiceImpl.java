@@ -8,6 +8,7 @@ import com.insurancefraud.common.exception.ResourceNotFoundException;
 import com.insurancefraud.common.security.CurrentUserService;
 import com.insurancefraud.entity.Claim;
 import com.insurancefraud.enums.*;
+import com.insurancefraud.util.PaginationUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -264,21 +265,8 @@ public class AdminClaimServiceImpl implements AdminClaimService {
 
         User admin = currentUserService.getCurrentActiveUser();
 
-        // PAGE SIZE PROTECTION
-        if (pageSize > 50) {
-            pageSize = 50;
-        }
-        if (pageSize < 1) {
-            pageSize = 10;
-        }
-
-        // SORT DIRECTION
-        Sort sort =
-                sortDir.equalsIgnoreCase("ASC")
-                        ? Sort.by(sortBy.getFieldName()).ascending()
-                        : Sort.by(sortBy.getFieldName()).descending();
-
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, sort);
+        // Using pagination utility
+        Pageable pageable = PaginationUtils.buildPageable(pageNumber, pageSize, sortBy, sortDir);
 
 
         Page<Claim> claimPages =

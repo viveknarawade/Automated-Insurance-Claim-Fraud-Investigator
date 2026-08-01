@@ -10,6 +10,7 @@ import com.insurancefraud.enums.ClaimSortField;
 import com.insurancefraud.enums.ClaimStatus;
 import com.insurancefraud.enums.FraudStatus;
 import com.insurancefraud.investigator.dto.*;
+import com.insurancefraud.util.PaginationUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -47,24 +48,9 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
     ) {
 
         User investigator = currentUserService.getCurrentActiveUser();
-        if (pageSize > 50) {
-            pageSize = 50;
-        }
-        if (pageSize < 1) {
-            pageSize = 10;
-        }
 
-        Sort sort =
-                sortDir.equalsIgnoreCase("ASC")
-                        ? Sort.by(sortBy.getFieldName()).ascending()
-                        : Sort.by(sortBy.getFieldName()).descending();
-
-        Pageable pageable =
-                PageRequest.of(
-                        pageNumber,
-                        pageSize,
-                        sort
-                );
+        // Using pagination utility
+        Pageable pageable = PaginationUtils.buildPageable(pageNumber, pageSize, sortBy, sortDir);
 
         Page<Claim> claimPages =
                 claimRepo.findByAssignedInvestigatorAndIsDeletedFalse(

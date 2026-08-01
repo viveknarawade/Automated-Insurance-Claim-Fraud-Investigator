@@ -25,27 +25,6 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserRepo userRepo;
 
-    @Override
-    protected boolean shouldNotFilter(
-            HttpServletRequest request
-    ) {
-
-        String path = request.getServletPath();
-
-        return path.equals("/api/v1/auth/login")
-                || path.equals("/api/v1/auth/register")
-                || path.equals("/api/v1/auth/verify-email")
-                || path.equals("/api/v1/auth/resend-verification")
-                || path.equals("/api/v1/auth/refresh")
-
-                // PASSWORD RESET
-                || path.equals("/api/v1/auth/forgot-password")
-                || path.equals("/api/v1/auth/reset-password")
-
-                // SWAGGER
-                || path.startsWith("/v3/api-docs")
-                || path.startsWith("/swagger-ui");
-    }
 
     @Override
     protected void doFilterInternal(
@@ -72,7 +51,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
             String token = authHeader.substring(7);
 
-            Long userId = jwtService.extractUserId(token);
+            Long userId = jwtService.extractUserIdFromAccessToken(token);
 
             if (userId != null
                     && SecurityContextHolder.getContext()

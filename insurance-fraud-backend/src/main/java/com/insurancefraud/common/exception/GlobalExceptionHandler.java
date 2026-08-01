@@ -15,6 +15,9 @@
     import java.time.LocalDateTime;
     import java.util.stream.Collectors;
 
+    import lombok.extern.slf4j.Slf4j;
+
+    @Slf4j
     @RestControllerAdvice
     public class GlobalExceptionHandler {
 
@@ -200,8 +203,10 @@
             return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
         }
 
-
-
+        @ExceptionHandler(IllegalStateException.class)
+        public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, HttpServletRequest request) {
+            return buildErrorResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request);
+        }
 
         @ExceptionHandler(IOException.class)
         public ResponseEntity<ApiError> handleIOException(IOException ex, HttpServletRequest request) {
@@ -210,15 +215,18 @@
 
 
 
+
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ApiError> handleGlobalException(
                 Exception ex,
                 HttpServletRequest request
         ) {
+            // Log full details internally — never send to client
+            log.error("Unhandled exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
             return buildErrorResponse(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Internal Server Error",
-                    ex.getMessage(),
+                    "An unexpected error occurred. Please try again later.",
                     request
             );
         }

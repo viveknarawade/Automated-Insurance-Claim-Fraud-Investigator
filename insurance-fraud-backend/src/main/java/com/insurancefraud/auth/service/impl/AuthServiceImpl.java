@@ -165,12 +165,7 @@ public class AuthServiceImpl implements AuthService {
         response.setRefreshToken(refreshTokenString);
         response.setUser(userDto);
 
-        log.info(
-                "User logged in email {} ",
-                userDto.getEmail()
-        );
-        log.info("pass@123 = {}",   encoder.encode("pass@123"));
-
+        log.info("User logged in: {}", userDto.getEmail());
         return response;
     }
 
@@ -228,10 +223,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void delete(DeleteRequestDto deleteDto) {
 
-        User currentUser = currentUserService.getCurrentActiveUser();
-        User user = userRepo.findById(currentUser.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
-
+        User user = currentUserService.getCurrentActiveUser();
+  
         // CHECK PASSWORD
         if (!encoder.matches(deleteDto.getPassword(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid password");
