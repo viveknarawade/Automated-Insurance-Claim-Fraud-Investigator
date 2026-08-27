@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/network/api_client.dart';
@@ -28,6 +29,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> initAuth() async {
+    dev.log('[AUTH] Initializing authentication session...', name: 'AuthProvider');
     _isLoading = true;
     notifyListeners();
     try {
@@ -37,8 +39,12 @@ class AuthProvider extends ChangeNotifier {
 
       if (userJsonStr != null && token != null) {
         _currentUser = UserModel.fromJson(jsonDecode(userJsonStr));
+        dev.log('[AUTH] Restored session for user: ${_currentUser?.email} (${_currentUser?.role})', name: 'AuthProvider');
+      } else {
+        dev.log('[AUTH] No saved session found.', name: 'AuthProvider');
       }
     } catch (e) {
+      dev.log('[AUTH] Error initializing auth: $e', name: 'AuthProvider', error: e);
       _currentUser = null;
     } finally {
       _isLoading = false;
@@ -48,6 +54,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> login(String email, String password) async {
+    dev.log('[AUTH] Attempting login for email: $email', name: 'AuthProvider');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -75,12 +82,14 @@ class AuthProvider extends ChangeNotifier {
           _currentUser = UserModel.fromJson(userData);
         }
 
+        dev.log('[AUTH] Login successful! User: ${_currentUser?.email}, Role: ${_currentUser?.role}', name: 'AuthProvider');
         _isLoading = false;
         notifyListeners();
         return true;
       }
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Login failed for email $email. Error: $_errorMessage', name: 'AuthProvider', error: e);
     }
 
     _isLoading = false;
@@ -92,9 +101,9 @@ class AuthProvider extends ChangeNotifier {
     required String fullName,
     required String email,
     required String password,
-    String? phoneNumber,
-    String? role,
+    required String tenantCode,
   }) async {
+    dev.log('[AUTH] Registering new account - Email: $email, Name: $fullName, Tenant: $tenantCode', name: 'AuthProvider');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -104,15 +113,16 @@ class AuthProvider extends ChangeNotifier {
         'fullName': fullName,
         'email': email,
         'password': password,
-        if (phoneNumber != null && phoneNumber.isNotEmpty) 'phoneNumber': phoneNumber,
-        if (role != null && role.isNotEmpty) 'role': role,
+        'tenantCode': tenantCode,
       });
 
+      dev.log('[AUTH] Registration successful for $email', name: 'AuthProvider');
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Registration failed for $email. Error: $_errorMessage', name: 'AuthProvider', error: e);
     }
 
     _isLoading = false;
@@ -121,17 +131,42 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> forgotPassword(String email) async {
+    dev.log('[AUTH] Requesting password reset for: $email', name: 'AuthProvider');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       await _apiClient.post('/auth/forgot-password', body: {'email': email});
+      dev.log('[AUTH] Password reset email triggered for: $email', name: 'AuthProvider');
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Forgot password request failed for $email. Error: $_errorMessage', name: 'AuthProvider', error: e);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> resendVerification(String email) async {
+    dev.log('[AUTH] Requesting resend verification for: $email', name: 'AuthProvider');
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiClient.post('/auth/resend-verification', body: {'email': email});
+      dev.log('[AUTH] Verification email re-sent to: $email', name: 'AuthProvider');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Resend verification failed for $email. Error: $_errorMessage', name: 'AuthProvider', error: e);
     }
 
     _isLoading = false;
@@ -140,17 +175,21 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    dev.log('[AUTH] Logging out user: ${_currentUser?.email}', name: 'AuthProvider');
     try {
       final prefs = await SharedPreferences.getInstance();
       final refreshToken = prefs.getString(ApiClient.keyRefreshToken);
       if (refreshToken != null) {
         await _apiClient.post('/auth/logout', body: {'refreshToken': refreshToken});
       }
-    } catch (_) {}
+    } catch (e) {
+      dev.log('[AUTH] Error revoking refresh token during logout: $e', name: 'AuthProvider');
+    }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     _currentUser = null;
+    dev.log('[AUTH] Logout complete. Session cleared.', name: 'AuthProvider');
     notifyListeners();
   }
 }

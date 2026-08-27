@@ -9,7 +9,7 @@ class ApiConstants {
     if (kIsWeb) {
       return 'http://localhost:8081/api/v1';
     } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8081/api/v1';
+      return 'http://10.126.18.128:8081/api/v1';
     } else {
       return 'http://localhost:8081/api/v1';
     }

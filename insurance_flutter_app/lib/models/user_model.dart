@@ -3,37 +3,42 @@ class UserModel {
   final String fullName;
   final String email;
   final String role;
-  final String? phoneNumber;
-  final bool? isVerified;
+  final String? tenantCode;
+  final String? status;
+  final String? avatarUrl;
 
   UserModel({
     required this.id,
     required this.fullName,
     required this.email,
     required this.role,
-    this.phoneNumber,
-    this.isVerified,
+    this.tenantCode,
+    this.status,
+    this.avatarUrl,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id']?.toString() ?? '',
+      id: (json['userId'] ?? json['id'])?.toString() ?? '',
       fullName: json['fullName'] ?? json['name'] ?? 'User',
       email: json['email'] ?? '',
       role: json['role'] ?? 'USER',
-      phoneNumber: json['phoneNumber'],
-      isVerified: json['verified'] ?? json['isVerified'] ?? true,
+      tenantCode: json['tenantCode'],
+      status: json['status'],
+      avatarUrl: json['avatarUrl'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'userId': id,
       'id': id,
       'fullName': fullName,
       'email': email,
       'role': role,
-      'phoneNumber': phoneNumber,
-      'verified': isVerified,
+      'tenantCode': tenantCode,
+      'status': status,
+      'avatarUrl': avatarUrl,
     };
   }
 }

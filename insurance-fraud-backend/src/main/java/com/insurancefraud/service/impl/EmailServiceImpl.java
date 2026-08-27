@@ -25,10 +25,13 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailTaskExecutor")
     @Override
     public void sendVerificationEmail(String email, String token) {
+        String link = "http://10.126.18.128:8081/api/v1/auth/verify-email?token=" + token;
+        log.info("==========================================================================");
+        log.info("VERIFICATION LINK FOR [{}]:", email);
+        log.info("{}", link);
+        log.info("==========================================================================");
 
         try {
-            String link =
-                    "http://localhost:8081/api/v1/auth/verify-email?token=" + token;
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setFrom(
@@ -62,15 +65,11 @@ public class EmailServiceImpl implements EmailService {
             helper.setText(htmlContent, true);
             mailSender.send(message);
             log.info("Verification email sent to {}", email);
-        } catch (MessagingException e) {
+        } catch (Exception e) {
             log.error(
-                    "Failed to send verification email to {}",
+                    "Failed to send verification email to {}. You can click the console link above to verify.",
                     email,
                     e
-            );
-
-            throw new EmailSendFailedException(
-                    "Unable to send verification email"
             );
         }
     }

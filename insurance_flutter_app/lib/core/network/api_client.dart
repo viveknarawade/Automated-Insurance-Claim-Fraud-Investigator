@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
@@ -32,14 +33,18 @@ class ApiClient {
       uri = uri.replace(queryParameters: queryParams);
     }
 
+    dev.log('--> GET $uri', name: 'ApiClient');
     final headers = await _getHeaders();
     var response = await http.get(uri, headers: headers);
+    dev.log('<-- ${response.statusCode} GET $uri', name: 'ApiClient');
 
     if (response.statusCode == 401 && !endpoint.contains('/auth/')) {
+      dev.log('Received 401 Unauthorized. Attempting token refresh...', name: 'ApiClient');
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final newHeaders = await _getHeaders();
         response = await http.get(uri, headers: newHeaders);
+        dev.log('<-- ${response.statusCode} GET (Retry) $uri', name: 'ApiClient');
       }
     }
 
@@ -51,21 +56,27 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders();
 
+    final bodyStr = body != null ? jsonEncode(body) : null;
+    dev.log('--> POST $uri\nPayload: $bodyStr', name: 'ApiClient');
+
     var response = await http.post(
       uri,
       headers: headers,
-      body: body != null ? jsonEncode(body) : null,
+      body: bodyStr,
     );
+    dev.log('<-- ${response.statusCode} POST $uri', name: 'ApiClient');
 
     if (response.statusCode == 401 && !endpoint.contains('/auth/')) {
+      dev.log('Received 401 Unauthorized. Attempting token refresh...', name: 'ApiClient');
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final newHeaders = await _getHeaders();
         response = await http.post(
           uri,
           headers: newHeaders,
-          body: body != null ? jsonEncode(body) : null,
+          body: bodyStr,
         );
+        dev.log('<-- ${response.statusCode} POST (Retry) $uri', name: 'ApiClient');
       }
     }
 
@@ -77,21 +88,27 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders();
 
+    final bodyStr = body != null ? jsonEncode(body) : null;
+    dev.log('--> PATCH $uri\nPayload: $bodyStr', name: 'ApiClient');
+
     var response = await http.patch(
       uri,
       headers: headers,
-      body: body != null ? jsonEncode(body) : null,
+      body: bodyStr,
     );
+    dev.log('<-- ${response.statusCode} PATCH $uri', name: 'ApiClient');
 
     if (response.statusCode == 401 && !endpoint.contains('/auth/')) {
+      dev.log('Received 401 Unauthorized. Attempting token refresh...', name: 'ApiClient');
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final newHeaders = await _getHeaders();
         response = await http.patch(
           uri,
           headers: newHeaders,
-          body: body != null ? jsonEncode(body) : null,
+          body: bodyStr,
         );
+        dev.log('<-- ${response.statusCode} PATCH (Retry) $uri', name: 'ApiClient');
       }
     }
 
@@ -103,13 +120,17 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders();
 
+    dev.log('--> DELETE $uri', name: 'ApiClient');
     var response = await http.delete(uri, headers: headers);
+    dev.log('<-- ${response.statusCode} DELETE $uri', name: 'ApiClient');
 
     if (response.statusCode == 401 && !endpoint.contains('/auth/')) {
+      dev.log('Received 401 Unauthorized. Attempting token refresh...', name: 'ApiClient');
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final newHeaders = await _getHeaders();
         response = await http.delete(uri, headers: newHeaders);
+        dev.log('<-- ${response.statusCode} DELETE (Retry) $uri', name: 'ApiClient');
       }
     }
 
@@ -126,6 +147,7 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders(isMultipart: true);
 
+    dev.log('--> MULTIPART POST $uri (File: $filePath)', name: 'ApiClient');
     var request = http.MultipartRequest('POST', uri);
     request.headers.addAll(headers);
 
@@ -138,6 +160,7 @@ class ApiClient {
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
+    dev.log('<-- ${response.statusCode} MULTIPART $uri', name: 'ApiClient');
 
     return _processResponse(response);
   }
@@ -146,14 +169,19 @@ class ApiClient {
     try {
       final prefs = await SharedPreferences.getInstance();
       final refreshToken = prefs.getString(keyRefreshToken);
-      if (refreshToken == null || refreshToken.isEmpty) return false;
+      if (refreshToken == null || refreshToken.isEmpty) {
+        dev.log('No refresh token stored. Auto-login refresh aborted.', name: 'ApiClient');
+        return false;
+      }
 
       final baseUrl = await ApiConstants.getBaseUrl();
+      dev.log('--> POST $baseUrl/auth/refresh', name: 'ApiClient');
       final response = await http.post(
         Uri.parse('$baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': refreshToken}),
       );
+      dev.log('<-- ${response.statusCode} POST /auth/refresh', name: 'ApiClient');
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -161,11 +189,14 @@ class ApiClient {
           final newAccessToken = json['data']['accessToken'];
           if (newAccessToken != null) {
             await prefs.setString(keyAccessToken, newAccessToken);
+            dev.log('Access token successfully refreshed!', name: 'ApiClient');
             return true;
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      dev.log('Error refreshing token: $e', name: 'ApiClient', error: e);
+    }
     return false;
   }
 
@@ -173,6 +204,7 @@ class ApiClient {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
       final decoded = jsonDecode(response.body);
+      dev.log('Response Body: ${response.body}', name: 'ApiClient');
       if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
         return decoded['data'];
       }
@@ -185,6 +217,7 @@ class ApiClient {
           errorMessage = decoded['message'];
         }
       } catch (_) {}
+      dev.log('API Exception [${response.statusCode}]: $errorMessage', name: 'ApiClient', error: errorMessage);
       throw Exception(errorMessage);
     }
   }
