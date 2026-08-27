@@ -18,21 +18,58 @@ api.interceptors.request.use(
 )
 
 api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      const hadToken = !!getAccessToken()
-      const onLoginPage = window.location.pathname === '/' || window.location.pathname === '/login'
-      // Only wipe session and redirect if there was an active token (session expiry)
-      // and we're not already on the login page (prevents redirect loops)
-      if (hadToken && !onLoginPage) {
-        clearAuthData()
-        console.log('Session expired. Redirecting to login...')
-        window.location.href = '/'
+  (response) => response,
+
+  async (error) => {
+
+    const originalRequest = error.config;
+    const isAuthRequest = originalRequest?.url?.includes("/auth/");
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthRequest
+    ) {
+
+      originalRequest._retry = true;
+
+      try {
+
+        const refreshToken =
+          localStorage.getItem("refreshToken");
+
+        const res = await axios.post(
+          "http://localhost:8081/api/v1/auth/refresh",
+          {
+            refreshToken
+          }
+        );
+
+        const newAccessToken =
+          res.data.data.accessToken;
+
+        localStorage.setItem(
+          "accessToken",
+          newAccessToken
+        );
+
+        originalRequest.headers.Authorization =
+          `Bearer ${newAccessToken}`;
+
+        return api(originalRequest);
+
+      } catch {
+
+        localStorage.clear();
+
+        window.location.href = "/";
+
+        return Promise.reject(error);
       }
     }
-    return Promise.reject(error)
-  },
-)
+
+    return Promise.reject(error);
+  }
+);
 
 export default api

@@ -9,6 +9,7 @@ export const resetPassword = (payload) =>api.post("/auth/reset-password", payloa
 export const logout = (payload) =>api.post("/auth/logout", payload);
 
 export const resendVerification = (email) =>api.post("/auth/resend-verification", {email,});
+export const deleteAccount = (payload) => api.post("/auth/delete-account", payload);
 
 export const handleLoginSuccess = (data, navigate) => {
   saveAuthData(data.accessToken, data.refreshToken, data.user);

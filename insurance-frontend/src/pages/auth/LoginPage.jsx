@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { login, handleLoginSuccess } from "../../services/authService";
+import { login, handleLoginSuccess, resendVerification } from "../../services/authService";
 
 import {
   ShieldCheck,
@@ -9,6 +9,7 @@ import {
   Loader2,
   Lock,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 
@@ -17,23 +18,44 @@ function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resendStatus, setResendStatus] = useState("");
+  const [resending, setResending] = useState(false);
   const navigate = useNavigate();
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const handleResend = async (email) => {
+    setResending(true);
+    setResendStatus("");
+    try {
+      await resendVerification(email);
+      setResendStatus("Verification email sent! Please check your inbox.");
+      setError("");
+    } catch (err) {
+      setResendStatus(
+        err.response?.data?.message || "Failed to resend verification email."
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault(); // Browser refresh is stopped
     setError("");
+    setResendStatus("");
     setLoading(true);
     try {
       const res = await login(form);
       console.log(res.data);
       handleLoginSuccess(res.data.data, navigate);
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Login failed. Please check your credentials.",
-      );
+      const msg = err.response?.data?.message || "Login failed. Please check your credentials.";
+      if (msg.toLowerCase().includes("email not verified") || msg.toLowerCase().includes("verified")) {
+        setError("Your email address is not verified.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,9 +80,29 @@ function LoginPage() {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-8">
           {/* Error */}
           {error && (
-            <div className="mb-5 flex items-start gap-2.5 px-3.5 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              <AlertCircle size={15} className="mt-0.5 shrink-0" />
-              {error}
+            <div className="mb-5 flex flex-col gap-1.5 px-3.5 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+              {error.toLowerCase().includes("verified") && (
+                <button
+                  type="button"
+                  onClick={() => handleResend(form.email)}
+                  disabled={resending}
+                  className="text-xs text-red-800 font-semibold hover:underline mt-1 self-start disabled:opacity-50"
+                >
+                  {resending ? "Sending..." : "Didn't receive the email? Resend verification link"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Resend Status Message */}
+          {resendStatus && (
+            <div className="mb-5 flex items-start gap-2.5 px-3.5 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+              <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+              <span>{resendStatus}</span>
             </div>
           )}
 

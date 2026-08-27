@@ -7,7 +7,6 @@ import com.insurancefraud.enums.StorageProvider;
 import com.insurancefraud.storage.dto.StoredFileResult;
 import com.insurancefraud.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -24,7 +23,6 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "storage.provider", havingValue = "local", matchIfMissing = true)

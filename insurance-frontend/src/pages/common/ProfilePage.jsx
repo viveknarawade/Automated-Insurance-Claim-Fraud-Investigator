@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/DashboardLayout";
 import { getUser, getRefreshToken, clearAuthData } from "../../utils/auth";
-import { logout } from "../../services/authService";
-import { User, Mail, Shield, Building, CheckCircle, Calendar, Edit2, Lock, LogOut, Trash2, X } from "lucide-react";
+import { logout, deleteAccount, resetPassword } from "../../services/authService";
+import { User, Mail, Shield, Building, CheckCircle, Calendar, Edit2, Lock, LogOut, Trash2, X, AlertCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 function ActionModal({ title, children, onClose }) {
@@ -35,6 +35,14 @@ export default function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // Delete account states
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Derive display values
   const initials = user?.fullName?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "??";
@@ -58,13 +66,61 @@ export default function ProfilePage() {
     setModal(null);
   };
 
-  const handleUpdatePassword = (e) => {
+  const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    // Implementation would call API
-    setModal(null);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setPasswordError("");
+    setPasswordSuccess(false);
+
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const token = getAccessToken();
+      await resetPassword({
+        token,
+        newPassword: newPassword,
+      });
+      setPasswordSuccess(true);
+      setTimeout(() => {
+        clearAuthData();
+        setModal(null);
+        navigate("/");
+      }, 2000);
+    } catch (err) {
+      setPasswordError(
+        err.response?.data?.message || "Failed to update password."
+      );
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    setDeleteError("");
+    setDeleteLoading(true);
+    try {
+      await deleteAccount({ password: deletePassword });
+      clearAuthData();
+      setModal(null);
+      setDeletePassword("");
+      navigate("/");
+    } catch (err) {
+      setDeleteError(
+        err.response?.data?.message || "Failed to delete account. Please check your password."
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const InfoRow = ({ icon: Icon, label, value }) => (
@@ -131,7 +187,7 @@ export default function ProfilePage() {
             <LogOut className="w-4 h-4" />
             {loggingOut ? "Signing out..." : "Sign Out"}
           </button>
-          <button className="flex items-center gap-3 px-4 py-3 bg-white border border-red-200 rounded-xl hover:bg-red-50 transition-colors text-sm font-semibold text-red-600">
+          <button onClick={() => { setModal('delete'); setDeletePassword(""); setDeleteError(""); }} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-200 rounded-xl hover:bg-red-50 transition-colors text-sm font-semibold text-red-600">
             <Trash2 className="w-4 h-4" />
             Delete Account
           </button>
@@ -162,24 +218,80 @@ export default function ProfilePage() {
         {modal === 'password' && (
           <ActionModal title="Change Password" onClose={() => setModal(null)}>
             <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Password</label>
-                <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
-              </div>
+              {passwordError && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs font-medium text-red-700">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+              {passwordSuccess && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-medium text-emerald-700">
+                  <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>Password updated successfully. Logging out...</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">New Password</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                <input type="password" required value={newPassword} onChange={e => setNewPassword(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirm New Password</label>
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                <input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-colors">Update Password</button>
+                <button type="submit" disabled={passwordLoading} className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                  {passwordLoading ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            </form>
+          </ActionModal>
+        )}
+
+        {modal === 'delete' && (
+          <ActionModal title="Delete Account" onClose={() => setModal(null)}>
+            <form onSubmit={handleDeleteAccount} className="space-y-4">
+              {deleteError && (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs font-medium text-red-700">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+              <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg">
+                <p className="text-xs font-semibold text-red-800 uppercase tracking-wider mb-1">Warning</p>
+                <p className="text-xs text-red-700 leading-relaxed">
+                  This action is permanent and cannot be undone. All your claims and information will be archived/soft-deleted.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Enter Password to Confirm</label>
+                <input
+                  type="password"
+                  required
+                  value={deletePassword}
+                  onChange={e => setDeletePassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/30 focus:border-slate-500"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModal(null)}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={deleteLoading}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {deleteLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Delete Account
+                </button>
               </div>
             </form>
           </ActionModal>

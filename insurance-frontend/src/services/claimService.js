@@ -22,4 +22,4 @@ export const getAllUnsignedClaims = () => {
 export const getMyClaim = getAllClaims;
 
 export const getClaimById = (claimId) => api.get(`/claims/${claimId}`);
-export const addClaim     = (payload)  => api.post("/claims", payload);
+export   const addClaim     = (payload)  => api.post("/claims", payload);
