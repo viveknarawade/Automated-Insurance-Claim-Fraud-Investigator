@@ -53,6 +53,9 @@ public class WebSecurityConfig {
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/reset-password",
 
+                                //Test api
+                                "/api/v1/health",
+
                                 // SWAGGER
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

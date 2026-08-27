@@ -25,6 +25,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
 
+
     @Operation(summary = "Register user")
     @PostMapping("/register")
     ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequestDto requestDto){
