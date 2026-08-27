@@ -34,6 +34,11 @@ class AdminService {
     return [];
   }
 
+  Future<ClaimModel> getAdminClaimById(String claimId) async {
+    final response = await _api.get('/admin/claims/$claimId');
+    return ClaimModel.fromJson(response);
+  }
+
   Future<List<InvestigatorWorkloadModel>> getInvestigatorsWorkload() async {
     final response = await _api.get('/admin/investigators/workload');
     if (response is List) {
