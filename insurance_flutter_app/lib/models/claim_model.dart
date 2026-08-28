@@ -1,3 +1,5 @@
+import 'document_model.dart';
+
 class ClaimModel {
   final String id;
   final String? claimNumber;
@@ -16,10 +18,15 @@ class ClaimModel {
   final String? incidentCity;
   final String? incidentState;
   final String? policyHolderName;
+  final String? customerName;
+  final String? customerEmail;
   final String? assignedInvestigatorId;
   final String? assignedInvestigatorName;
   final String? reviewNotes;
   final String? decisionNotes;
+  final List<DocumentModel> documents;
+
+  final bool reviewAllowed;
 
   ClaimModel({
     required this.id,
@@ -39,10 +46,14 @@ class ClaimModel {
     this.incidentCity,
     this.incidentState,
     this.policyHolderName,
+    this.customerName,
+    this.customerEmail,
     this.assignedInvestigatorId,
     this.assignedInvestigatorName,
     this.reviewNotes,
     this.decisionNotes,
+    this.documents = const [],
+    this.reviewAllowed = true,
   });
 
   /// Full incident location string
@@ -52,6 +63,16 @@ class ClaimModel {
         .toList();
     return parts.isEmpty ? 'Location not provided' : parts.join(', ');
   }
+
+  /// Whether this claim is pending investigation review
+  bool get isPendingInvestigation {
+    if (status == 'APPROVED' || status == 'REJECTED') return false;
+    if (fraudStatus != null && fraudStatus != 'PENDING_ANALYSIS') return false;
+    return true;
+  }
+
+  /// Whether this claim investigation is completed/reviewed
+  bool get isCompletedInvestigation => !isPendingInvestigation;
 
   factory ClaimModel.fromJson(Map<String, dynamic> json) {
     return ClaimModel(
@@ -71,13 +92,27 @@ class ClaimModel {
       incidentAddress: json['incidentAddress'],
       incidentCity: json['incidentCity'],
       incidentState: json['incidentState'],
-      policyHolderName: json['policyHolderName'] ?? json['user']?['fullName'],
-      assignedInvestigatorId: json['assignedInvestigatorId']?.toString(),
-      assignedInvestigatorName: json['assignedInvestigatorName'] ??
+      policyHolderName: json['policyHolderName'] ?? json['customerName'] ?? json['user']?['fullName'],
+      customerName: json['customerName'] ?? json['policyHolderName'] ?? json['user']?['fullName'],
+      customerEmail: json['customerEmail'] ?? json['user']?['email'],
+      assignedInvestigatorId: (json['investigatorId'] ?? json['assignedInvestigatorId'])?.toString(),
+      assignedInvestigatorName: json['investigatorName'] ??
+          json['assignedInvestigatorName'] ??
           json['investigator']?['fullName'] ??
           json['assignedInvestigator']?['fullName'],
       reviewNotes: json['reviewNotes'] ?? json['investigatorNotes'],
       decisionNotes: json['decisionNotes'] ?? json['adminNotes'],
+      documents: json['documents'] != null
+          ? (json['documents'] as List).map((d) => DocumentModel.fromJson(d)).toList()
+          : [],
+      reviewAllowed: json['reviewAllowed'] ?? true,
     );
+  }
+
+  String get tenantCode {
+    if (claimNumber != null && claimNumber!.contains('-')) {
+      return claimNumber!.split('-').first;
+    }
+    return 'TATA_AIG';
   }
 }

@@ -21,6 +21,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryBlue,
         primary: primaryBlue,
@@ -152,6 +153,7 @@ class AppTheme {
       case 'REJECTED':
         return dangerRed;
       case 'UNDER_INVESTIGATION':
+      case 'UNDER_REVIEW':
       case 'IN_REVIEW':
         return warningAmber;
       case 'SUBMITTED':

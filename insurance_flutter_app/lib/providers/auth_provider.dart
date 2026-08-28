@@ -25,7 +25,18 @@ class AuthProvider extends ChangeNotifier {
   bool get isCustomer => role == 'USER' || role == 'CUSTOMER';
 
   AuthProvider() {
+    ApiClient.onUnauthorized = () {
+      logoutSilently();
+    };
     initAuth();
+  }
+
+  Future<void> logoutSilently() async {
+    dev.log('[AUTH] Silent logout triggered due to expired or invalid credentials.', name: 'AuthProvider');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    _currentUser = null;
+    notifyListeners();
   }
 
   Future<void> initAuth() async {
@@ -191,5 +202,56 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     dev.log('[AUTH] Logout complete. Session cleared.', name: 'AuthProvider');
     notifyListeners();
+  }
+
+  Future<bool> changePassword(String oldPassword, String newPassword) async {
+    dev.log('[AUTH] Changing password for user', name: 'AuthProvider');
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiClient.post('/auth/change-password', body: {
+        'oldPassword': oldPassword,
+        'newPassword': newPassword,
+      });
+      dev.log('[AUTH] Password changed successfully', name: 'AuthProvider');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Change password failed. Error: $_errorMessage', name: 'AuthProvider', error: e);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+
+  Future<bool> deleteAccount(String password) async {
+    dev.log('[AUTH] Deleting user account', name: 'AuthProvider');
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _apiClient.post('/auth/delete-account', body: {'password': password});
+      dev.log('[AUTH] Account deleted successfully', name: 'AuthProvider');
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      _currentUser = null;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      dev.log('[AUTH] Delete account failed. Error: $_errorMessage', name: 'AuthProvider', error: e);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
 }

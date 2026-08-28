@@ -33,18 +33,22 @@ class ClaimService {
   }
 
   Future<ClaimModel> submitClaim({
-    required String policyNumber,
     required double claimAmount,
     required String incidentDate,
     required String description,
     required String claimType,
+    required String incidentAddress,
+    required String incidentCity,
+    required String incidentState,
   }) async {
     final response = await _api.post('/claims', body: {
-      'policyNumber': policyNumber,
       'claimAmount': claimAmount,
       'incidentDate': incidentDate,
       'description': description,
       'claimType': claimType,
+      'incidentAddress': incidentAddress,
+      'incidentCity': incidentCity,
+      'incidentState': incidentState,
     });
     return ClaimModel.fromJson(response);
   }

@@ -38,16 +38,14 @@ class InvestigatorService {
 
   Future<ClaimModel> reviewClaim({
     required String claimId,
-    required double fraudScore,
-    required String recommendation,
+    required String fraudStatus,
     required String reviewNotes,
   }) async {
-    dev.log('[INVESTIGATOR_SERVICE] Submitting review for Claim: $claimId (Score: $fraudScore, Recommendation: $recommendation)', name: 'InvestigatorService');
+    dev.log('[INVESTIGATOR_SERVICE] Submitting review for Claim: $claimId (Fraud Status: $fraudStatus)', name: 'InvestigatorService');
     final response = await _api.patch(
       '/investigator/claims/$claimId/review',
       body: {
-        'fraudScore': fraudScore,
-        'recommendation': recommendation,
+        'fraudStatus': fraudStatus,
         'reviewNotes': reviewNotes,
       },
     );

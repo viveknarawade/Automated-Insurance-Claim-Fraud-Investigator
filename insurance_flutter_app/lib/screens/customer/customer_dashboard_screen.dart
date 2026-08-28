@@ -76,8 +76,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     // show only 4 most recent
     final recentClaims = _claims.take(4).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppTheme.darkBackground,
+      backgroundColor: isDark ? AppTheme.darkBackground : const Color(0xFFF8FAFC),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final result = await Navigator.push(
@@ -113,8 +115,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                           children: [
                             Text(
                               'Hello, ${user?.fullName.split(' ').first ?? 'User'}',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -122,7 +124,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                             const SizedBox(height: 2),
                             Text(
                               'Welcome back to FraudGuard',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                              style: TextStyle(
+                                color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -149,7 +154,11 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       // Notification bell
                       Stack(
                         children: [
-                          Icon(Icons.notifications_outlined, color: Colors.grey[300], size: 26),
+                          Icon(
+                            Icons.notifications_outlined,
+                            color: isDark ? Colors.grey[300] : const Color(0xFF475569),
+                            size: 26,
+                          ),
                           Positioned(
                             right: 0,
                             top: 0,
@@ -241,10 +250,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Recent Claims',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -273,10 +282,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     children: [
                       Icon(Icons.folder_off_outlined, size: 64, color: Colors.grey[700]),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'No claims yet',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -285,7 +294,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       Text(
                         'Tap "File a Claim" to submit your first claim',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                        style: TextStyle(
+                          color: isDark ? Colors.grey[500] : const Color(0xFF64748B),
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -345,13 +357,24 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Expanded(
       flex: wide ? 1 : 1,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(8),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,8 +390,8 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               '$count',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
@@ -376,7 +399,10 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+              style: TextStyle(
+                color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -407,6 +433,7 @@ class _ClaimCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = _statusColor(claim.status);
     final displayType = claim.claimType?.toCapitalized() ?? 'Vehicle';
     final dateStr = formatDate(claim.createdAt);
@@ -417,8 +444,17 @@ class _ClaimCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(8),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -441,9 +477,9 @@ class _ClaimCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    claim.claimNumber != null ? 'CLM-${claim.claimNumber}' : 'CLM-${claim.id}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    claim.claimNumber ?? claim.id,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -451,7 +487,10 @@ class _ClaimCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '$displayType  ·  $dateStr',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : const Color(0xFF64748B),
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   // Status pill
@@ -488,8 +527,8 @@ class _ClaimCard extends StatelessWidget {
             // Amount
             Text(
               formatCurrency(claim.claimAmount),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),

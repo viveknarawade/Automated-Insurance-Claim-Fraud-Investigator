@@ -1,13 +1,18 @@
 import 'dart:convert';
 import 'dart:developer' as dev;
+import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
+import 'package:mime/mime.dart';
+import 'package:http_parser/http_parser.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
   ApiClient._internal();
+
+  static VoidCallback? onUnauthorized;
 
   static const String keyAccessToken = 'accessToken';
   static const String keyRefreshToken = 'refreshToken';
@@ -137,6 +142,39 @@ class ApiClient {
     return _processResponse(response);
   }
 
+  Future<http.Response> getRaw(String endpoint) async {
+    final baseUrl = await ApiConstants.getBaseUrl();
+    final uri = Uri.parse('$baseUrl$endpoint');
+    final headers = await _getHeaders();
+
+    dev.log('--> GET RAW $uri', name: 'ApiClient');
+    var response = await http.get(uri, headers: headers);
+    dev.log('<-- ${response.statusCode} GET RAW $uri', name: 'ApiClient');
+
+    if (response.statusCode == 401 && !endpoint.contains('/auth/')) {
+      dev.log('Received 401 Unauthorized. Attempting token refresh...', name: 'ApiClient');
+      final refreshed = await _tryRefreshToken();
+      if (refreshed) {
+        final newHeaders = await _getHeaders();
+        response = await http.get(uri, headers: newHeaders);
+        dev.log('<-- ${response.statusCode} GET RAW (Retry) $uri', name: 'ApiClient');
+      }
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response;
+    } else {
+      String errorMessage = 'Request failed with status code ${response.statusCode}';
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('message')) {
+          errorMessage = decoded['message'];
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    }
+  }
+
   Future<dynamic> uploadMultipart(
     String endpoint, {
     required String filePath,
@@ -155,7 +193,15 @@ class ApiClient {
       request.fields.addAll(fields);
     }
 
-    final multipartFile = await http.MultipartFile.fromPath(fileParamName, filePath);
+    final mimeType = lookupMimeType(filePath) ?? 'image/jpeg';
+    final parts = mimeType.split('/');
+    final mediaType = MediaType(parts[0], parts[1]);
+
+    final multipartFile = await http.MultipartFile.fromPath(
+      fileParamName,
+      filePath,
+      contentType: mediaType,
+    );
     request.files.add(multipartFile);
 
     final streamedResponse = await request.send();
@@ -171,6 +217,7 @@ class ApiClient {
       final refreshToken = prefs.getString(keyRefreshToken);
       if (refreshToken == null || refreshToken.isEmpty) {
         dev.log('No refresh token stored. Auto-login refresh aborted.', name: 'ApiClient');
+        onUnauthorized?.call();
         return false;
       }
 
@@ -197,6 +244,8 @@ class ApiClient {
     } catch (e) {
       dev.log('Error refreshing token: $e', name: 'ApiClient', error: e);
     }
+    dev.log('Token refresh failed. Triggering unauthorized callback.', name: 'ApiClient');
+    onUnauthorized?.call();
     return false;
   }
 

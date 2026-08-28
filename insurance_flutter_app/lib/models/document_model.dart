@@ -17,9 +17,9 @@ class DocumentModel {
 
   factory DocumentModel.fromJson(Map<String, dynamic> json) {
     return DocumentModel(
-      id: json['id']?.toString() ?? '',
-      fileName: json['fileName'] ?? json['originalName'] ?? 'Document',
-      documentType: json['documentType'] ?? 'RECEIPT',
+      id: (json['documentId'] ?? json['claimDocId'] ?? json['docId'] ?? json['id'])?.toString() ?? '',
+      fileName: json['originalFileName'] ?? json['fileName'] ?? json['originalName'] ?? 'Document',
+      documentType: json['documentType'] ?? 'OTHER',
       fileUrl: json['fileUrl'] ?? json['cloudinaryUrl'],
       uploadedAt: json['uploadedAt']?.toString() ?? json['createdAt']?.toString(),
       fileSize: json['fileSize'] as int?,

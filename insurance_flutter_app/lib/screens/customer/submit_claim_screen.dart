@@ -1,9 +1,9 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/claim_service.dart';
 import '../../services/document_service.dart';
 import '../../theme/app_theme.dart';
+import 'document_upload_sheet.dart';
 
 class SubmitClaimScreen extends StatefulWidget {
   const SubmitClaimScreen({super.key});
@@ -17,243 +17,503 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
   final _claimService = ClaimService();
   final _documentService = DocumentService();
 
-  final _policyNumberController = TextEditingController();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
-  String _selectedType = 'HEALTH';
-  String? _selectedFilePath;
-  String? _selectedFileName;
-  String _selectedDocType = 'RECEIPT';
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+
+  String _selectedClaimType = 'CAR';
+  DateTime? _selectedDateTime;
+  final List<PickedDocument> _attachedDocuments = [];
   bool _isSubmitting = false;
 
   @override
   void dispose() {
-    _policyNumberController.dispose();
     _amountController.dispose();
     _descriptionController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'png', 'jpeg'],
+  Future<void> _pickDateTime() async {
+    final now = DateTime.now();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDateTime ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: AppTheme.primaryBlue,
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF1E293B),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: AppTheme.primaryBlue,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Color(0xFF0F172A),
+                  ),
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _selectedFilePath = result.files.single.path;
-        _selectedFileName = result.files.single.name;
-      });
-    }
+    if (pickedDate == null) return;
+
+    if (!mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_selectedDateTime ?? now),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: AppTheme.primaryBlue,
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF1E293B),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: AppTheme.primaryBlue,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Color(0xFF0F172A),
+                  ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedTime == null) return;
+
+    setState(() {
+      _selectedDateTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
+  }
+
+  void _openUploadSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DocumentUploadSheet(
+        onFilesPicked: (files) {
+          setState(() {
+            _attachedDocuments.addAll(files);
+          });
+        },
+      ),
+    );
+  }
+
+  void _showSnackBar(String msg, Color bg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: bg,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedDateTime == null) {
+      _showSnackBar('Please select the incident date & time', AppTheme.dangerRed);
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
     try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final isoDate = _selectedDateTime!.toUtc().toIso8601String();
       final newClaim = await _claimService.submitClaim(
-        policyNumber: _policyNumberController.text.trim(),
         claimAmount: double.parse(_amountController.text.trim()),
-        incidentDate: dateStr,
+        incidentDate: isoDate,
         description: _descriptionController.text.trim(),
-        claimType: _selectedType,
+        claimType: _selectedClaimType,
+        incidentAddress: _addressController.text.trim(),
+        incidentCity: _cityController.text.trim(),
+        incidentState: _stateController.text.trim(),
       );
 
-      // Upload file if attached
-      if (_selectedFilePath != null) {
+      // Upload all attached evidence documents
+      for (var doc in _attachedDocuments) {
         await _documentService.uploadDocument(
           claimId: newClaim.id,
-          filePath: _selectedFilePath!,
-          documentType: _selectedDocType,
+          filePath: doc.filePath,
+          documentType: doc.documentType,
         );
       }
 
+      _showSnackBar('Claim submitted successfully!', AppTheme.successGreen);
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Claim submitted successfully!'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
-      Navigator.pop(context, true);
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context, true);
+      } else {
+        // Reset form if in main navigation tab shell
+        _formKey.currentState!.reset();
+        setState(() {
+          _amountController.clear();
+          _descriptionController.clear();
+          _addressController.clear();
+          _cityController.clear();
+          _stateController.clear();
+          _selectedDateTime = null;
+          _attachedDocuments.clear();
+          _selectedClaimType = 'CAR';
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to submit claim: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: AppTheme.dangerRed,
-        ),
-      );
+      _showSnackBar('Failed to submit claim: $e', AppTheme.dangerRed);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
+  InputDecoration _inputDecoration(String label, bool isDark) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: isDark ? Colors.grey[400] : const Color(0xFF64748B), fontSize: 14),
+      filled: true,
+      fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: isDark ? Colors.white.withAlpha(15) : const Color(0xFFE2E8F0)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: isDark ? Colors.white.withAlpha(15) : const Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.dangerRed),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showBackButton = Navigator.canPop(context);
+    final formattedDateTime = _selectedDateTime != null
+        ? DateFormat('MM/dd/yyyy, hh:mm a').format(_selectedDateTime!)
+        : 'mm/dd/yyyy, --:-- --';
+
     return Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('New Insurance Claim'),
+        backgroundColor: isDark ? AppTheme.darkBackground : const Color(0xFFF8FAFC),
+        elevation: 0,
+        leading: showBackButton
+            ? IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        title: Text(
+          'File Claim',
+          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 18, fontWeight: FontWeight.bold),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Claim Information',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── SECTION 1: CLAIM INFORMATION ──────────────────────
+                Text(
+                  'Claim Information',
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
 
-                  TextFormField(
-                    controller: _policyNumberController,
-                    decoration: const InputDecoration(
-                      labelText: 'Policy Number',
-                      hintText: 'POL-100234',
-                      prefixIcon: Icon(Icons.confirmation_number_outlined),
-                    ),
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter policy number' : null,
-                  ),
-                  const SizedBox(height: 16),
+                // Claim Type
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedClaimType,
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 15),
+                  decoration: _inputDecoration('Claim Type *', isDark),
+                  items: const [
+                    DropdownMenuItem(value: 'CAR', child: Text('Car')),
+                    DropdownMenuItem(value: 'BIKE', child: Text('Bike')),
+                    DropdownMenuItem(value: 'TRUCK', child: Text('Truck')),
+                    DropdownMenuItem(value: 'AUTO', child: Text('Auto')),
+                    DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setState(() => _selectedClaimType = val);
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Claim Amount (\$)',
-                      hintText: '1500.00',
-                      prefixIcon: Icon(Icons.attach_money),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Enter amount';
-                      if (double.tryParse(val.trim()) == null) return 'Enter valid numeric amount';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                // Claim Amount
+                TextFormField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  decoration: _inputDecoration('Claim Amount (₹) *', isDark),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return 'Please enter the amount';
+                    final parsed = double.tryParse(val.trim());
+                    if (parsed == null || parsed <= 0) return 'Please enter a valid amount';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
 
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedType,
-                    decoration: const InputDecoration(
-                      labelText: 'Claim Category',
-                      prefixIcon: Icon(Icons.category_outlined),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'HEALTH', child: Text('Health & Medical')),
-                      DropdownMenuItem(value: 'AUTO', child: Text('Auto & Vehicle Accident')),
-                      DropdownMenuItem(value: 'PROPERTY', child: Text('Property & Home Damage')),
-                      DropdownMenuItem(value: 'LIFE', child: Text('Life Insurance')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedType = val);
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                // Description
+                TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  decoration: _inputDecoration('Description *', isDark),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return 'Please enter description';
+                    if (val.trim().length < 10) return 'Must be at least 10 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
 
-                  ListTile(
-                    shape: RoundedRectangleBorder(
+                // ── SECTION 2: INCIDENT DETAILS ────────────────────────
+                Text(
+                  'Incident Details',
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+
+                // Incident Date & Time Card Selector
+                GestureDetector(
+                  onTap: _pickDateTime,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? Colors.white.withAlpha(15) : const Color(0xFFE2E8F0)),
+                      boxShadow: isDark
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(8),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              )
+                            ],
                     ),
-                    tileColor: Theme.of(context).inputDecorationTheme.fillColor,
-                    leading: const Icon(Icons.calendar_today_outlined, color: AppTheme.primaryBlue),
-                    title: const Text('Incident Date', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    subtitle: Text(
-                      DateFormat('yyyy-MM-dd').format(_selectedDate),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (date != null) setState(() => _selectedDate = date);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Description / Incident Details',
-                      alignLabelWithHint: true,
-                    ),
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Enter incident details' : null,
-                  ),
-                  const SizedBox(height: 24),
-
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Supporting Evidence / Document',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickFile,
-                          icon: const Icon(Icons.upload_file),
-                          label: Text(_selectedFileName ?? 'Attach Receipt / Proof'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Incident Date & Time *',
+                                style: TextStyle(color: isDark ? Colors.grey[400] : const Color(0xFF64748B), fontSize: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                formattedDateTime,
+                                style: TextStyle(
+                                  color: _selectedDateTime != null
+                                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                      : (isDark ? Colors.grey[500] : const Color(0xFF94A3B8)),
+                                  fontSize: 15,
+                                  fontWeight: _selectedDateTime != null ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      if (_selectedFilePath != null)
-                        IconButton(
-                          icon: const Icon(Icons.close, color: AppTheme.dangerRed),
-                          onPressed: () {
-                            setState(() {
-                              _selectedFilePath = null;
-                              _selectedFileName = null;
-                            });
-                          },
-                        ),
-                    ],
-                  ),
-                  if (_selectedFilePath != null) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedDocType,
-                      decoration: const InputDecoration(labelText: 'Document Type'),
-                      items: const [
-                        DropdownMenuItem(value: 'RECEIPT', child: Text('Receipt / Bill')),
-                        DropdownMenuItem(value: 'MEDICAL_REPORT', child: Text('Medical Report')),
-                        DropdownMenuItem(value: 'POLICE_REPORT', child: Text('Police Report')),
-                        DropdownMenuItem(value: 'PHOTO_PROOF', child: Text('Photo Proof')),
+                        Icon(Icons.calendar_today_outlined, color: isDark ? Colors.grey[400] : const Color(0xFF64748B), size: 20),
                       ],
-                      onChanged: (val) {
-                        if (val != null) setState(() => _selectedDocType = val);
-                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Incident Address
+                TextFormField(
+                  controller: _addressController,
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  decoration: _inputDecoration('Incident Address *', isDark),
+                  validator: (val) => val == null || val.trim().isEmpty ? 'Address is required' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // City
+                TextFormField(
+                  controller: _cityController,
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  decoration: _inputDecoration('City *', isDark),
+                  validator: (val) => val == null || val.trim().isEmpty ? 'City is required' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // State
+                TextFormField(
+                  controller: _stateController,
+                  style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  decoration: _inputDecoration('State *', isDark),
+                  validator: (val) => val == null || val.trim().isEmpty ? 'State is required' : null,
+                ),
+                const SizedBox(height: 24),
+
+                // ── SECTION 3: EVIDENCE & DOCUMENTS ───────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Evidence & Documents',
+                      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    TextButton.icon(
+                      onPressed: _openUploadSheet,
+                      icon: const Icon(Icons.add_rounded, color: AppTheme.primaryBlue),
+                      label: const Text('Add', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.bold)),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
 
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _isSubmitting ? null : _handleSubmit,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                          )
-                        : const Text('SUBMIT CLAIM'),
+                if (_attachedDocuments.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? Colors.white.withAlpha(10) : const Color(0xFFE2E8F0)),
+                      boxShadow: isDark
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(8),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              )
+                            ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        'No files attached. Tap "Add" to upload photos/documents.',
+                        style: TextStyle(color: isDark ? Colors.grey[500] : const Color(0xFF64748B), fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _attachedDocuments.length,
+                    separatorBuilder: (_, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, idx) {
+                      final doc = _attachedDocuments[idx];
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryBlue.withAlpha(20),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.primaryBlue.withAlpha(40)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.insert_drive_file_outlined, color: AppTheme.primaryBlue, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    doc.fileName,
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    doc.documentType,
+                                    style: TextStyle(color: isDark ? Colors.grey[400] : const Color(0xFF64748B), fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: AppTheme.dangerRed, size: 18),
+                              onPressed: () {
+                                setState(() {
+                                  _attachedDocuments.removeAt(idx);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+
+                const SizedBox(height: 32),
+
+                // Submit Button
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'SUBMIT CLAIM',
+                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                        ),
+                ),
+
+                const SizedBox(height: 24),
+              ],
             ),
           ),
         ),

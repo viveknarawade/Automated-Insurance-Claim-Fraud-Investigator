@@ -3,18 +3,22 @@ class AdminDashboardModel {
   final int pendingClaims;
   final int approvedClaims;
   final int rejectedClaims;
-  final int underInvestigationClaims;
-  final double totalClaimedAmount;
-  final int highRiskCount;
+  final int suspectedFraudClaims;
+  final int underReviewClaims;
+  final int confirmedFraudClaims;
+  final int activeClaims;
+  final int clearClaims;
 
   AdminDashboardModel({
     required this.totalClaims,
     required this.pendingClaims,
     required this.approvedClaims,
     required this.rejectedClaims,
-    required this.underInvestigationClaims,
-    required this.totalClaimedAmount,
-    required this.highRiskCount,
+    required this.suspectedFraudClaims,
+    required this.underReviewClaims,
+    required this.confirmedFraudClaims,
+    required this.activeClaims,
+    required this.clearClaims,
   });
 
   factory AdminDashboardModel.fromJson(Map<String, dynamic> json) {
@@ -23,9 +27,11 @@ class AdminDashboardModel {
       pendingClaims: json['pendingClaims'] ?? 0,
       approvedClaims: json['approvedClaims'] ?? 0,
       rejectedClaims: json['rejectedClaims'] ?? 0,
-      underInvestigationClaims: json['underInvestigationClaims'] ?? 0,
-      totalClaimedAmount: (json['totalClaimedAmount'] as num?)?.toDouble() ?? 0.0,
-      highRiskCount: json['highRiskCount'] ?? json['flaggedClaimsCount'] ?? 0,
+      suspectedFraudClaims: json['suspectedFraudClaims'] ?? 0,
+      underReviewClaims: json['underReviewClaims'] ?? 0,
+      confirmedFraudClaims: json['confirmedFraudClaims'] ?? 0,
+      activeClaims: json['activeClaims'] ?? 0,
+      clearClaims: json['clearClaims'] ?? 0,
     );
   }
 }

@@ -45,6 +45,16 @@ class AdminService {
     return ClaimModel.fromJson(response);
   }
 
+  Future<List<dynamic>> getAdminClaimDocuments(String claimId) async {
+    dev.log('[ADMIN_SERVICE] Fetching admin documents for claim ID: $claimId', name: 'AdminService');
+    final response = await _api.get('/admin/claims/$claimId/documents');
+    if (response is List) {
+      dev.log('[ADMIN_SERVICE] Fetched ${response.length} documents for claim $claimId.', name: 'AdminService');
+      return response;
+    }
+    return [];
+  }
+
   Future<List<InvestigatorWorkloadModel>> getInvestigatorsWorkload() async {
     dev.log('[ADMIN_SERVICE] Fetching investigators workload distribution...', name: 'AdminService');
     final response = await _api.get('/admin/investigators/workload');
@@ -55,14 +65,13 @@ class AdminService {
     return [];
   }
 
-  Future<ClaimModel> assignInvestigator(String claimId, String investigatorId) async {
+  Future<void> assignInvestigator(String claimId, String investigatorId) async {
     dev.log('[ADMIN_SERVICE] Assigning Claim $claimId to Investigator $investigatorId', name: 'AdminService');
-    final response = await _api.patch(
+    await _api.patch(
       '/admin/claims/$claimId/assign-investigator',
-      body: {'investigatorId': investigatorId},
+      body: {'investigatorId': int.parse(investigatorId)},
     );
     dev.log('[ADMIN_SERVICE] Successfully assigned Claim $claimId to Investigator $investigatorId', name: 'AdminService');
-    return ClaimModel.fromJson(response);
   }
 
   Future<ClaimModel> approveClaim(String claimId, String decisionNotes) async {
@@ -83,5 +92,15 @@ class AdminService {
     );
     dev.log('[ADMIN_SERVICE] Claim $claimId REJECTED successfully.', name: 'AdminService');
     return ClaimModel.fromJson(response);
+  }
+
+  Future<List<ClaimModel>> getUnassignedClaims() async {
+    dev.log('[ADMIN_SERVICE] Fetching unassigned claims...', name: 'AdminService');
+    final response = await _api.get('/admin/claims/unassigned');
+    if (response is List) {
+      dev.log('[ADMIN_SERVICE] Fetched ${response.length} unassigned claims.', name: 'AdminService');
+      return response.map((item) => ClaimModel.fromJson(item)).toList();
+    }
+    return [];
   }
 }

@@ -1,11 +1,13 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/admin_dashboard_model.dart';
-import '../../services/admin_service.dart';
+import '../../models/claim_model.dart';
+import '../../providers/admin_dashboard_provider.dart';
+import '../../providers/realtime_provider.dart';
 import '../../theme/app_theme.dart';
 import 'admin_claims_screen.dart';
-import 'admin_workload_screen.dart';
+import 'admin_claim_detail_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -15,222 +17,537 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final AdminService _adminService = AdminService();
-  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
-
-  AdminDashboardModel? _stats;
-  bool _isLoading = true;
+  final _inrFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
   @override
   void initState() {
     super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    setState(() => _isLoading = true);
-    try {
-      final stats = await _adminService.getDashboardStats();
-      setState(() {
-        _stats = stats;
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AdminDashboardProvider>().loadDashboardData();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _loadStats,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Executive Overview',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'System-wide fraud metrics & claims overview',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue.withAlpha(40),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.admin_panel_settings_outlined, color: AppTheme.primaryBlue),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    context.watch<RealtimeProvider>(); // Re-render / react when realtime events occur
 
-                    if (_isLoading)
-                      const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()))
-                    else if (_stats != null) ...[
-                      // Main Total Amount Card
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.primaryBlue.withAlpha(80)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      body: Consumer<AdminDashboardProvider>(
+        builder: (context, provider, child) {
+          final stats = provider.stats;
+          final unassignedClaims = provider.unassignedClaims;
+          final isLoading = provider.isLoading;
+
+          return RefreshIndicator(
+            onRefresh: () => provider.loadDashboardData(),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 24, top: 55, right: 20, left: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Total System Claims Value', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                            const SizedBox(height: 6),
-                            Text(
-                              currencyFormat.format(_stats!.totalClaimedAmount),
-                              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildBadge('Total: ${_stats!.totalClaims}', Colors.blue),
-                                _buildBadge('High Risk: ${_stats!.highRiskCount}', AppTheme.dangerRed),
-                                _buildBadge('Pending: ${_stats!.pendingClaims}', AppTheme.warningAmber),
+                                const Text(
+                                  'Admin Dashboard',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Executive Overview',
+                                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            Stack(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : Colors.grey[200],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: isDark ? Colors.white : Colors.black,
+                                    size: 24,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppTheme.dangerRed,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 20),
 
-                      // Chart Card
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        if (isLoading)
+                          const SizedBox(
+                            height: 300,
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (stats != null) ...[
+                          // Stats Cards Grid
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.4,
                             children: [
-                              const Text('Claim Decisions Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              const SizedBox(height: 20),
-                              SizedBox(
-                                height: 180,
-                                child: PieChart(
-                                  PieChartData(
-                                    sectionsSpace: 4,
-                                    centerSpaceRadius: 40,
-                                    sections: [
-                                      PieChartSectionData(
-                                        color: AppTheme.successGreen,
-                                        value: (_stats!.approvedClaims > 0 ? _stats!.approvedClaims : 1).toDouble(),
-                                        title: '${_stats!.approvedClaims}',
-                                        radius: 40,
-                                      ),
-                                      PieChartSectionData(
-                                        color: AppTheme.dangerRed,
-                                        value: (_stats!.rejectedClaims > 0 ? _stats!.rejectedClaims : 0).toDouble(),
-                                        title: '${_stats!.rejectedClaims}',
-                                        radius: 40,
-                                      ),
-                                      PieChartSectionData(
-                                        color: AppTheme.warningAmber,
-                                        value: (_stats!.underInvestigationClaims > 0 ? _stats!.underInvestigationClaims : 0).toDouble(),
-                                        title: '${_stats!.underInvestigationClaims}',
-                                        radius: 40,
-                                      ),
-                                      PieChartSectionData(
-                                        color: AppTheme.infoBlue,
-                                        value: (_stats!.pendingClaims > 0 ? _stats!.pendingClaims : 0).toDouble(),
-                                        title: '${_stats!.pendingClaims}',
-                                        radius: 40,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              _buildStatCard(
+                                context: context,
+                                title: 'Total Claims',
+                                value: '${stats.totalClaims}',
+                                icon: Icons.description_outlined,
+                                iconColor: AppTheme.infoBlue,
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                children: [
-                                  _buildLegend(AppTheme.successGreen, 'Approved'),
-                                  _buildLegend(AppTheme.dangerRed, 'Rejected'),
-                                  _buildLegend(AppTheme.warningAmber, 'Under Review'),
-                                  _buildLegend(AppTheme.infoBlue, 'Pending'),
-                                ],
+                              _buildStatCard(
+                                context: context,
+                                title: 'Pending Decisions',
+                                value: '${stats.pendingClaims}',
+                                icon: Icons.gavel_outlined,
+                                iconColor: AppTheme.warningAmber,
+                              ),
+                              _buildStatCard(
+                                context: context,
+                                title: 'Under Review',
+                                value: '${stats.underReviewClaims}',
+                                icon: Icons.assignment_outlined,
+                                iconColor: Colors.teal,
+                              ),
+                              _buildStatCard(
+                                context: context,
+                                title: 'Rejected Claims',
+                                value: '${stats.rejectedClaims}',
+                                icon: Icons.cancel_outlined,
+                                iconColor: AppTheme.dangerRed,
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
+                          const SizedBox(height: 24),
 
-                      // Quick Action Tiles
-                      Text('Management Actions', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      ListTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        tileColor: Theme.of(context).cardTheme.color,
-                        leading: const Icon(Icons.assignment_ind_outlined, color: AppTheme.primaryBlue),
-                        title: const Text('Investigator Workload & Assignments', style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Reassign claims or monitor capacity'),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminWorkloadScreen()));
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      ListTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        tileColor: Theme.of(context).cardTheme.color,
-                        leading: const Icon(Icons.gavel_outlined, color: AppTheme.accentCyan),
-                        title: const Text('Claims Adjudication', style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Review and decide pending claims'),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminClaimsScreen()));
-                        },
-                      ),
-                    ],
-                  ],
+                          // Fraud Risk Distribution Section
+                          _buildRiskDistributionSection(stats),
+                          const SizedBox(height: 16),
+
+                          // Pending Admin Decisions Header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Pending Admin Decisions',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const AdminClaimsScreen()),
+                                  );
+                                },
+                                child: const Text('See all'),
+                              ),
+                            ],
+                          ),
+
+                          if (unassignedClaims.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF334155) : Colors.grey[200]!,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.check_circle_outline, color: AppTheme.successGreen, size: 40),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'All caught up!',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white : Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'No pending claims require decisions.',
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: unassignedClaims.length.clamp(0, 5),
+                              itemBuilder: (context, idx) {
+                                final claim = unassignedClaims[idx];
+                                return _buildClaimCard(context, claim, () async {
+                                  final res = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => AdminClaimDetailScreen(claimId: claim.id),
+                                    ),
+                                  );
+                                  if (res == true && context.mounted) {
+                                    context.read<AdminDashboardProvider>().loadDashboardData();
+                                  }
+                                });
+                              },
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBadge(String label, Color color) {
+  Widget _buildStatCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: color.withAlpha(40), borderRadius: BorderRadius.circular(10)),
-      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : Colors.grey[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(30),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildLegend(Color color, String text) {
-    return Row(
+ Widget _buildRiskDistributionSection(AdminDashboardModel stats) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+
+  final int clearCount = stats.clearClaims;
+  final int maxVal = stats.totalClaims > 0 ? stats.totalClaims : 1;
+
+  return Container(
+    padding: const EdgeInsets.all(20.0),
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: isDark ? const Color(0xFF334155) : Colors.grey[200]!,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const Text(
+          'Fraud Risk Distribution',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        _buildRiskBar(
+          label: 'Clear',
+          color: AppTheme.successGreen,
+          count: stats.clearClaims,
+          pct: (clearCount / maxVal).clamp(0.0, 1.0).toDouble(),
+        ),
+
+        const SizedBox(height: 16),
+
+        _buildRiskBar(
+          label: 'Suspected',
+          color: AppTheme.warningAmber,
+          count: stats.suspectedFraudClaims,
+          pct: (stats.suspectedFraudClaims / maxVal)
+              .clamp(0.0, 1.0)
+              .toDouble(),
+        ),
+
+        const SizedBox(height: 16),
+
+        _buildRiskBar(
+          label: 'Confirmed',
+          color: AppTheme.dangerRed,
+          count: stats.confirmedFraudClaims,
+          pct: (stats.confirmedFraudClaims / maxVal)
+              .clamp(0.0, 1.0)
+              .toDouble(),
+        ),
       ],
+    ),
+  );
+}
+
+  Widget _buildRiskBar({
+    required String label,
+    required Color color,
+    required int count,
+    required double pct,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+            Text('$count', style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 8,
+            backgroundColor: Colors.grey[800],
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+
+  Widget _buildClaimCard(BuildContext context, ClaimModel claim, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusColor = AppTheme.getStatusColor(claim.status);
+    final riskColor = AppTheme.getRiskColor(claim.fraudScore);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : Colors.grey[200]!,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      claim.claimNumber ?? 'CLM-${claim.id}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334155) : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        claim.tenantCode,
+                        style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey[700],
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${claim.policyHolderName ?? "N/A"}  •  ${claim.claimType ?? "General"}  •  ${_inrFormat.format(claim.claimAmount)}',
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: statusColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            claim.status.replaceAll('_', ' '),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: riskColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: riskColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${claim.fraudScore.toInt()}%',
+                            style: TextStyle(
+                              color: riskColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.person_outline_rounded,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          claim.assignedInvestigatorName ?? 'Unassigned',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
