@@ -40,6 +40,16 @@ public class ClaimDetailResponseDto {
 
     private String reviewNotes;
 
+    private String decisionNotes;
+
+    private String customerName;
+
+    private String customerEmail;
+
+    private String investigatorName;
+
+    private String tenantCode;
+
     private Instant createdAt;
 
     private Instant updatedAt;

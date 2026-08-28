@@ -122,7 +122,12 @@ public class ClaimServiceImpl implements ClaimService {
         Claim claim = claimRepo.findByUserAndClaimIdAndIsDeletedFalse(user, claimId)
                 .orElseThrow(() -> new ResourceNotFoundException("Claim not found with ID: " + claimId));
 
-        log.info("Retrieved claim with ID: {} for user {}", claimId, user.getEmail());
-        return mapper.map(claim, ClaimDetailResponseDto.class);
+        ClaimDetailResponseDto dto = mapper.map(claim, ClaimDetailResponseDto.class);
+        dto.setDecisionNotes(claim.getDecisionNotes());
+        dto.setCustomerName(claim.getUser().isDeleted() ? "Deleted User" : claim.getUser().getFullName());
+        dto.setCustomerEmail(claim.getUser().getEmail());
+        dto.setInvestigatorName(claim.getAssignedInvestigator() != null ? claim.getAssignedInvestigator().getFullName() : "Not Assigned");
+        dto.setTenantCode(claim.getTenant().getTenantCode());
+        return dto;
     }
 }

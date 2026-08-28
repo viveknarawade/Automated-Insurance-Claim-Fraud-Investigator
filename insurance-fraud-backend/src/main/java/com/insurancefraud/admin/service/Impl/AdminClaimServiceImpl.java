@@ -127,21 +127,28 @@ public class AdminClaimServiceImpl implements AdminClaimService {
 
         User admin = currentUserService.getCurrentActiveUser();
 
-        Claim claim =claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
-                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found or not under review"));
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
 
+        if (claim.getClaimStatus() == ClaimStatus.APPROVED) {
+            throw new IllegalStateException("Claim already approved");
+        }
+        if (claim.getClaimStatus() == ClaimStatus.REJECTED) {
+            throw new IllegalStateException("Claim already has a final decision");
+        }
+        if (claim.getClaimStatus() != ClaimStatus.UNDER_REVIEW) {
+            throw new IllegalStateException("Claim must be under review before a decision can be made. Please assign an investigator first.");
+        }
         if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
             throw new IllegalStateException("Claim investigation not completed");
         }
         if (claim.getFraudStatus() == FraudStatus.CONFIRMED) {
             throw new IllegalStateException("Fraudulent claims cannot be approved");
         }
-        if (claim.getClaimStatus() == ClaimStatus.APPROVED) {
-            throw new IllegalStateException("Claim already approved");
-        }
 
         claim.setDecisionNotes(requestDto.getDecisionNotes());
         claim.setClaimStatus(ClaimStatus.APPROVED);
+        claim.setFraudStatus(FraudStatus.CLEAR);
         claimRepo.save(claim);
 
         log.info(
@@ -164,20 +171,25 @@ public class AdminClaimServiceImpl implements AdminClaimService {
     @Override
     public ClaimDecisionResponseDto rejectClaim(Long claimId, ClaimDecisionRequestDto requestDto) {
         User admin = currentUserService.getCurrentActiveUser();
-        Claim claim =
-                claimRepo.findByClaimIdAndClaimStatusAndIsDeletedFalse(claimId, ClaimStatus.UNDER_REVIEW)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException("Claim not found or not under review"));
-
-        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
-            throw new IllegalStateException("Claim investigation not completed");
-        }
+        Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
+                        .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
 
         if (claim.getClaimStatus() == ClaimStatus.REJECTED) {
             throw new IllegalStateException("Claim already rejected");
         }
+        if (claim.getClaimStatus() == ClaimStatus.APPROVED) {
+            throw new IllegalStateException("Claim already has a final decision");
+        }
+        if (claim.getClaimStatus() != ClaimStatus.UNDER_REVIEW) {
+            throw new IllegalStateException("Claim must be under review before a decision can be made. Please assign an investigator first.");
+        }
+        if (claim.getFraudStatus() == FraudStatus.PENDING_ANALYSIS) {
+            throw new IllegalStateException("Claim investigation not completed");
+        }
+
         claim.setDecisionNotes(requestDto.getDecisionNotes());
         claim.setClaimStatus(ClaimStatus.REJECTED);
+        claim.setFraudStatus(FraudStatus.CONFIRMED);
         claimRepo.save(claim);
 
         log.info(
@@ -209,6 +221,7 @@ public class AdminClaimServiceImpl implements AdminClaimService {
         Long rejectedClaims = claimRepo.countByTenantAndClaimStatusAndIsDeletedFalse(admin.getTenant(), ClaimStatus.REJECTED);
         Long suspectedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.SUSPECTED);
         Long confirmedFraudClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.CONFIRMED);
+        Long clearClaims = claimRepo.countByTenantAndFraudStatusAndIsDeletedFalse(admin.getTenant(), FraudStatus.CLEAR);
         Long activeClaims =  pendingClaims + underReviewClaims;
 
         log.info(
@@ -225,6 +238,7 @@ public class AdminClaimServiceImpl implements AdminClaimService {
                 suspectedFraudClaims,
                 underReviewClaims,
                 confirmedFraudClaims,
+                clearClaims,
                 activeClaims
         );
     }
@@ -326,7 +340,12 @@ public class AdminClaimServiceImpl implements AdminClaimService {
         Claim claim = claimRepo.findByClaimIdAndTenantAndIsDeletedFalse(claimId, admin.getTenant())
                 .orElseThrow(() -> new ResourceNotFoundException("Claim not found"));
 
-        return mapper.map(claim, com.insurancefraud.claim.dto.ClaimDetailResponseDto.class);
+        com.insurancefraud.claim.dto.ClaimDetailResponseDto dto = mapper.map(claim, com.insurancefraud.claim.dto.ClaimDetailResponseDto.class);
+        dto.setCustomerName(claim.getUser().isDeleted() ? "Deleted User" : claim.getUser().getFullName());
+        dto.setCustomerEmail(claim.getUser().getEmail());
+        dto.setInvestigatorName(claim.getAssignedInvestigator() != null ? claim.getAssignedInvestigator().getFullName() : "Not Assigned");
+        dto.setTenantCode(claim.getTenant().getTenantCode());
+        return dto;
     }
 
     @Override

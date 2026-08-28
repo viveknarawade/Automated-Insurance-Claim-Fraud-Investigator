@@ -15,6 +15,8 @@ public class DashboardResponseDto {
     private Long suspectedFraudClaims;
     private Long underReviewClaims;
     private Long confirmedFraudClaims;
+    private Long clearClaims;
     private Long activeClaims;
+
 
 }

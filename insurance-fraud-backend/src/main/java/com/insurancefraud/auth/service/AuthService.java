@@ -12,5 +12,6 @@ public interface AuthService {
     void delete(@Valid DeleteRequestDto deleteDto) ;
     void forgotPassword(@Valid ForgotPasswordRequestDto requestDto);
     void resetPassword(@Valid ResetPasswordRequestDto requestDto);
+    void changePassword(@Valid ChangePasswordRequestDto requestDto);
 
 }

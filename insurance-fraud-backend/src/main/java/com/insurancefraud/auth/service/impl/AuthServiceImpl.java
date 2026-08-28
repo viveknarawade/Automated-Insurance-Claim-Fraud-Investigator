@@ -325,4 +325,27 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepo.save(refreshTokenEntity);
         log.info("RefreshToken saved to DB for Email : {} ",user.getEmail() );
     }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequestDto requestDto) {
+        User user = currentUserService.getCurrentActiveUser();
+        if (user.isDeleted()) {
+            throw new AccountDeletedException("Account deleted");
+        }
+        if (!encoder.matches(requestDto.getOldPassword(), user.getPasswordHash())) {
+            throw new BadCredentialsException("Invalid old password");
+        }
+        user.setPasswordHash(encoder.encode(requestDto.getNewPassword()));
+        user.setUpdatedAt(Instant.now());
+        userRepo.save(user);
+
+        // Revoke all active refresh tokens to force re-login on other sessions
+        List<RefreshToken> tokens = refreshTokenRepo.findByUser(user);
+        for (RefreshToken token : tokens) {
+            token.setRevoked(true);
+        }
+        refreshTokenRepo.saveAll(tokens);
+        log.info("Password changed successfully for user: {}", user.getEmail());
+    }
 }

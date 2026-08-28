@@ -35,5 +35,7 @@ public class ClaimSummaryResponseDto {
 
     private String incidentCity;
 
+    private String decisionNotes;
+
     private Instant createdAt;
 }

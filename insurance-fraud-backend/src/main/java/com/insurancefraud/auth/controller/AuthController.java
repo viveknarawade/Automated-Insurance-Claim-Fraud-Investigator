@@ -177,4 +177,20 @@ public class AuthController {
                 )
         );
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @Valid @RequestBody ChangePasswordRequestDto requestDto
+    ) {
+        authService.changePassword(requestDto);
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Password changed successfully",
+                        200,
+                        Instant.now(),
+                        null
+                )
+        );
+    }
 }
