@@ -2,7 +2,7 @@ import axios from 'axios'
 import { getAccessToken, clearAuthData } from '../utils/auth'
 
 const api = axios.create({
-  baseURL: "http://localhost:8081/api/v1",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8081/api/v1",
   headers: {
     "Content-Type": "application/json",
   },
@@ -38,8 +38,9 @@ api.interceptors.response.use(
         const refreshToken =
           localStorage.getItem("refreshToken");
 
+        const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8081/api/v1";
         const res = await axios.post(
-          "http://localhost:8081/api/v1/auth/refresh",
+          `${apiBaseUrl}/auth/refresh`,
           {
             refreshToken
           }
