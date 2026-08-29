@@ -41,17 +41,181 @@ public class AuthController {
     }
 
     @Operation(summary = "send email verification")
-    @GetMapping("/verify-email")
-    public ResponseEntity<ApiResponse<String>> verifyEmail(@RequestParam String token) {
-        authService.verifyEmail(token);
-        ApiResponse<String> response = new ApiResponse<>(
-                true,
-                "Email verified successfully",
-                200,
-                Instant.now(),
-                null
-        );
-        return ResponseEntity.ok(response);
+    @GetMapping(value = "/verify-email", produces = "text/html")
+    public String verifyEmail(@RequestParam String token) {
+        try {
+            authService.verifyEmail(token);
+            return """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Email Verified - FraudGuard AI</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+                            background-color: #0f172a;
+                            color: #f8fafc;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                        }
+                        .card {
+                            background: rgba(30, 41, 59, 0.7);
+                            backdrop-filter: blur(12px);
+                            border: 1px solid rgba(255, 255, 255, 0.08);
+                            padding: 40px 30px;
+                            border-radius: 20px;
+                            text-align: center;
+                            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+                            max-width: 420px;
+                            width: 90%;
+                        }
+                        .circle {
+                            width: 80px;
+                            height: 80px;
+                            background: rgba(16, 185, 129, 0.15);
+                            border-radius: 50%;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            margin: 0 auto 24px;
+                            color: #10b981;
+                            font-size: 36px;
+                            font-weight: bold;
+                            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                        }
+                        h1 {
+                            font-size: 26px;
+                            font-weight: 700;
+                            margin: 0 0 12px;
+                            background: linear-gradient(135deg, #34d399, #059669);
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                        }
+                        p {
+                            color: #94a3b8;
+                            font-size: 15px;
+                            line-height: 1.6;
+                            margin: 0 0 32px;
+                        }
+                        .btn {
+                            display: inline-block;
+                            background: linear-gradient(135deg, #10b981, #059669);
+                            color: white;
+                            text-decoration: none;
+                            padding: 12px 32px;
+                            border-radius: 10px;
+                            font-weight: 600;
+                            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+                            transition: transform 0.2s, box-shadow 0.2s;
+                        }
+                        .btn:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+                        }
+                        @keyframes pop {
+                            0% { transform: scale(0); }
+                            100% { transform: scale(1); }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <div class="circle">✓</div>
+                        <h1>Email Verified!</h1>
+                        <p>Your account has been successfully verified. You can now close this window and log in to the FraudGuard AI app.</p>
+                        <a href="#" class="btn" onclick="window.close(); return false;">Close Tab</a>
+                    </div>
+                </body>
+                </html>
+                """;
+        } catch (Exception e) {
+            return """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Verification Failed - FraudGuard AI</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+                            background-color: #0f172a;
+                            color: #f8fafc;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                        }
+                        .card {
+                            background: rgba(30, 41, 59, 0.7);
+                            backdrop-filter: blur(12px);
+                            border: 1px solid rgba(255, 255, 255, 0.08);
+                            padding: 40px 30px;
+                            border-radius: 20px;
+                            text-align: center;
+                            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+                            max-width: 420px;
+                            width: 90%;
+                        }
+                        .circle {
+                            width: 80px;
+                            height: 80px;
+                            background: rgba(239, 68, 68, 0.15);
+                            border-radius: 50%;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            margin: 0 auto 24px;
+                            color: #ef4444;
+                            font-size: 36px;
+                            font-weight: bold;
+                        }
+                        h1 {
+                            font-size: 26px;
+                            font-weight: 700;
+                            margin: 0 0 12px;
+                            background: linear-gradient(135deg, #f87171, #dc2626);
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                        }
+                        p {
+                            color: #94a3b8;
+                            font-size: 15px;
+                            line-height: 1.6;
+                            margin: 0 0 32px;
+                        }
+                        .btn {
+                            display: inline-block;
+                            background: #334155;
+                            color: white;
+                            text-decoration: none;
+                            padding: 12px 32px;
+                            border-radius: 10px;
+                            font-weight: 600;
+                            transition: background-color 0.2s;
+                        }
+                        .btn:hover {
+                            background-color: #475569;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <div class="circle">✗</div>
+                        <h1>Verification Failed</h1>
+                        <p>The verification link has expired, is invalid, or the email has already been verified.</p>
+                        <a href="#" class="btn" onclick="window.close(); return false;">Close Tab</a>
+                    </div>
+                </body>
+                </html>
+                """;
+        }
     }
 
     @Operation(summary = "Login user")
