@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/policy_provider.dart';
+import 'buy_policy_screen.dart';
 
 class MyPoliciesScreen extends StatefulWidget {
   const MyPoliciesScreen({super.key});
@@ -45,9 +46,20 @@ class _MyPoliciesScreenState extends State<MyPoliciesScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Your insurance policy will appear here once assigned by the admin.',
+                            'You do not have any active insurance policies yet.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
+                              ).then((_) => context.read<PolicyProvider>().fetchMyPolicies());
+                            },
+                            icon: const Icon(Icons.shield_outlined),
+                            label: const Text('Explore & Buy Policy'),
                           ),
                         ],
                       ),
@@ -112,9 +124,17 @@ class _MyPoliciesScreenState extends State<MyPoliciesScreen> {
                           ),
                         );
                       },
-                    ),
-            ),
-
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
+          ).then((_) => context.read<PolicyProvider>().fetchMyPolicies());
+        },
+        icon: const Icon(Icons.add_shopping_cart),
+        label: const Text('Buy / Apply Policy'),
+      ),
     );
   }
 
