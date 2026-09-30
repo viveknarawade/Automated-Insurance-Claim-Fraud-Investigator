@@ -1,19 +1,20 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiConstants {
   static const String keyCustomBaseUrl = 'custom_base_url';
 
-  // Default IP for Android emulator is 10.0.2.2, for desktop/web is localhost
-  static String get defaultBaseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:8081/api/v1';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.126.18.128:8081/api/v1';
-    } else {
-      return 'http://localhost:8081/api/v1';
-    }
-  }
+  // Environment Presets
+  static const String localHostUrl = 'http://localhost:8081/api/v1';
+
+  // Physical Android phone connected to the same Wi-Fi as laptop
+  static const String physicalDeviceUrl =
+      'http://10.62.215.128:8081/api/v1';
+
+  static const String productionUrl =
+      'https://fraudguard-backend-g3e4.onrender.com/api/v1';
+
+  // Default Base URL points to live Render backend
+  static String get defaultBaseUrl => productionUrl;
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
