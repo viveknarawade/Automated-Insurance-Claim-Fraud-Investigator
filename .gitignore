@@ -1,0 +1,10 @@
+.env
+.env.*
+node_modules/
+dist/
+**/fraudguard-ai-venv/
+**/__pycache__/
+*.pyc
+target/
+.idea/
+.vscode/
