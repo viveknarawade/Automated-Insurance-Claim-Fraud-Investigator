@@ -12,10 +12,12 @@ import org.springframework.security.web.*;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import java.util.List;
 
 
 @Configuration
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class WebSecurityConfig {
 
@@ -73,6 +75,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/investigator/**").hasRole("INVESTIGATOR")
                         .requestMatchers("/api/v1/claims/**").hasRole("USER")
+                        .requestMatchers("/api/v1/policies/**").hasRole("USER")
 
                         .anyRequest().authenticated()
                 )

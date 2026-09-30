@@ -56,7 +56,11 @@ class _MyPoliciesScreenState extends State<MyPoliciesScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
-                              ).then((_) => context.read<PolicyProvider>().fetchMyPolicies());
+                              ).then((_) {
+                                if (context.mounted) {
+                                  context.read<PolicyProvider>().fetchMyPolicies();
+                                }
+                              });
                             },
                             icon: const Icon(Icons.shield_outlined),
                             label: const Text('Explore & Buy Policy'),
@@ -124,13 +128,18 @@ class _MyPoliciesScreenState extends State<MyPoliciesScreen> {
                           ),
                         );
                       },
-      ),
+                    ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
-          ).then((_) => context.read<PolicyProvider>().fetchMyPolicies());
+          ).then((_) {
+            if (context.mounted) {
+              context.read<PolicyProvider>().fetchMyPolicies();
+            }
+          });
         },
         icon: const Icon(Icons.add_shopping_cart),
         label: const Text('Buy / Apply Policy'),
