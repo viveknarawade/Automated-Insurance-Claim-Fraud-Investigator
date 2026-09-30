@@ -60,6 +60,7 @@ public class ClaimServiceImpl implements ClaimService {
     claim.setUser(user);
     claim.setFraudStatus(FraudStatus.PENDING_ANALYSIS);
     claim.setClaimStatus(ClaimStatus.PENDING);
+    claim.setClaimNumber("TEMP-" + System.currentTimeMillis() + "-" + java.util.UUID.randomUUID().toString().substring(0, 8));
 
     // First save - MySQL generates claimId
     claim = claimRepo.save(claim);
