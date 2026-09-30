@@ -6,16 +6,19 @@ import 'providers/admin_dashboard_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/customer_claims_provider.dart';
 import 'providers/investigator_claims_provider.dart';
+import 'providers/policy_provider.dart';
 import 'providers/realtime_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/admin/admin_claims_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
+import 'screens/admin/admin_policies_screen.dart';
 import 'screens/admin/admin_workload_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/common/notifications_screen.dart';
 import 'screens/common/profile_screen.dart';
 import 'screens/customer/customer_dashboard_screen.dart';
 import 'screens/customer/my_claims_screen.dart';
+import 'screens/customer/my_policies_screen.dart';
 import 'screens/customer/submit_claim_screen.dart';
 import 'screens/investigator/investigator_claims_screen.dart';
 import 'screens/investigator/investigator_dashboard_screen.dart';
@@ -33,6 +36,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AdminClaimsProvider()),
         ChangeNotifierProvider(create: (_) => CustomerClaimsProvider()),
         ChangeNotifierProvider(create: (_) => InvestigatorClaimsProvider()),
+        ChangeNotifierProvider(create: (_) => PolicyProvider()),
       ],
       child: const FraudGuardApp(),
     ),
@@ -219,12 +223,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       screens = const [
         AdminDashboardScreen(),
         AdminClaimsScreen(),
+        AdminPoliciesScreen(),
         AdminWorkloadScreen(),
         ProfileScreen(),
       ];
       navItems = const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Dashboard'),
         BottomNavigationBarItem(icon: Icon(Icons.gavel_outlined), activeIcon: Icon(Icons.gavel), label: 'Claims'),
+        BottomNavigationBarItem(icon: Icon(Icons.policy_outlined), activeIcon: Icon(Icons.policy), label: 'Policies'),
         BottomNavigationBarItem(icon: Icon(Icons.badge_outlined), activeIcon: Icon(Icons.badge), label: 'Workload'),
         BottomNavigationBarItem(icon: Icon(Icons.person_outlined), activeIcon: Icon(Icons.person), label: 'Profile'),
       ];
@@ -249,13 +255,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       // CUSTOMER / USER
       screens = const [
         CustomerDashboardScreen(),
+        MyPoliciesScreen(),
         MyClaimsScreen(),
         SubmitClaimScreen(),
         ProfileScreen(),
       ];
       navItems = const [
         BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'My Claims'),
+        BottomNavigationBarItem(icon: Icon(Icons.security_outlined), activeIcon: Icon(Icons.security), label: 'Policies'),
+        BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Claims'),
         BottomNavigationBarItem(icon: Icon(Icons.post_add_outlined), activeIcon: Icon(Icons.note_add), label: 'File'),
         BottomNavigationBarItem(icon: Icon(Icons.person_outlined), activeIcon: Icon(Icons.person), label: 'Profile'),
       ];

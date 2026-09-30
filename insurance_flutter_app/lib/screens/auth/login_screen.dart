@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: urlController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'http://10.0.2.2:8081/api/v1',
+                hintText: 'https://automated-insurance-claim-fraud-investigator-production.up.railway.app/api/v1',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 prefixIcon: const Icon(Icons.link, color: AppTheme.primaryBlue),
                 filled: true,
