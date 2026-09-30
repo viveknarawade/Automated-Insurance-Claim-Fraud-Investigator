@@ -1,4 +1,7 @@
 package com.insurancefraud.enums;
 
-public class PolicyStatus {
+public enum PolicyStatus {
+    ACTIVE,
+    EXPIRED,
+    CANCELLED
 }
