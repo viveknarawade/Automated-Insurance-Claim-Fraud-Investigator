@@ -673,6 +673,33 @@ class _AdminClaimDetailBodyState extends State<_AdminClaimDetailBody> {
                   ]),
                   const SizedBox(height: 16),
 
+                  // ── POLICY & VEHICLE DETAILS ─────────────────────
+                  _Card(
+                    title: 'Policy & Vehicle Information',
+                    icon: Icons.shield_outlined,
+                    iconColor: AppTheme.primaryBlue,
+                    cardColor: cardColor,
+                    borderColor: borderColor,
+                    children: [
+                      _Row('Policy Number', c.policyNumber, labelColor, textColor),
+                      if (c.planName != null && c.planName!.isNotEmpty)
+                        _Row('Plan Name', c.planName!, labelColor, textColor),
+                      if (c.vehicleNumber != null && c.vehicleNumber!.isNotEmpty)
+                        _Row('Vehicle Reg', c.vehicleNumber!, labelColor, textColor),
+                      if (c.vehicleMakeModel != null && c.vehicleMakeModel!.isNotEmpty)
+                        _Row('Make / Model', c.vehicleMakeModel!, labelColor, textColor),
+                      if (c.insuredDeclaredValue != null && c.insuredDeclaredValue! > 0)
+                        _Row('Insured Value (IDV)', _inrFormat.format(c.insuredDeclaredValue!), labelColor, textColor),
+                      if (c.policyStartDate != null)
+                        _Row('Coverage Start', _fmtDate(c.policyStartDate), labelColor, textColor),
+                      if (c.policyEndDate != null)
+                        _Row('Coverage End', _fmtDate(c.policyEndDate), labelColor, textColor),
+                      if (c.policyStatus != null)
+                        _Row('Policy Status', c.policyStatus!, labelColor, textColor),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
                   // ── INCIDENT DETAILS ─────────────────────────
                   _Card(title: 'Incident Details', icon: Icons.location_on_outlined, cardColor: cardColor, borderColor: borderColor, children: [
                     _Row('Incident Date', _fmtDate(c.incidentDate), labelColor, textColor),

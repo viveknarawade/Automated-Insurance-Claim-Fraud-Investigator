@@ -41,6 +41,16 @@ public class InvestigatorClaimDetailsResponseDto {
     // Documents
     private List<ClaimDocumentResponseDto> documents;
 
+    // Policy Information
+    private String policyNumber;
+    private String planName;
+    private String vehicleNumber;
+    private String vehicleMakeModel;
+    private BigDecimal insuredDeclaredValue;
+    private Instant policyStartDate;
+    private Instant policyEndDate;
+    private String policyStatus;
+
     // Audit
     private Instant createdAt;
 }

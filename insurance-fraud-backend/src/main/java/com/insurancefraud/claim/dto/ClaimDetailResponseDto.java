@@ -50,6 +50,16 @@ public class ClaimDetailResponseDto {
 
     private String tenantCode;
 
+    // Policy Information
+    private String policyNumber;
+    private String planName;
+    private String vehicleNumber;
+    private String vehicleMakeModel;
+    private BigDecimal insuredDeclaredValue;
+    private Instant policyStartDate;
+    private Instant policyEndDate;
+    private String policyStatus;
+
     private Instant createdAt;
 
     private Instant updatedAt;

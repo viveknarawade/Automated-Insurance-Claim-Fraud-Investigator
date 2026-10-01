@@ -33,6 +33,10 @@ public class Claim {
     @JoinColumn(name = "assigned_investigator_id")
     private User assignedInvestigator;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "policy_id")
+    private Policy policy;
+
     @Column(name = "claim_number",nullable = false,unique = true)
     private String claimNumber;
 

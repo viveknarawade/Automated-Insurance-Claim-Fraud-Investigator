@@ -26,6 +26,15 @@ class ClaimModel {
   final String? decisionNotes;
   final List<DocumentModel> documents;
 
+  // Policy Details
+  final String? planName;
+  final String? vehicleNumber;
+  final String? vehicleMakeModel;
+  final double? insuredDeclaredValue;
+  final String? policyStartDate;
+  final String? policyEndDate;
+  final String? policyStatus;
+
   final bool reviewAllowed;
 
   ClaimModel({
@@ -53,6 +62,13 @@ class ClaimModel {
     this.reviewNotes,
     this.decisionNotes,
     this.documents = const [],
+    this.planName,
+    this.vehicleNumber,
+    this.vehicleMakeModel,
+    this.insuredDeclaredValue,
+    this.policyStartDate,
+    this.policyEndDate,
+    this.policyStatus,
     this.reviewAllowed = true,
   });
 
@@ -78,7 +94,7 @@ class ClaimModel {
     return ClaimModel(
       id: (json['claimId'] ?? json['id'])?.toString() ?? '',
       claimNumber: json['claimNumber'] ?? json['claimId']?.toString(),
-      policyNumber: json['policyNumber'] ?? 'POL-N/A',
+      policyNumber: json['policyNumber'] ?? json['policy']?['policyNumber'] ?? 'POL-N/A',
       claimAmount: (json['claimAmount'] as num?)?.toDouble() ?? 0.0,
       status: json['claimStatus'] ?? json['status'] ?? 'PENDING',
       fraudScore: (json['fraudScore'] as num?)?.toDouble() ?? 0.0,
@@ -105,6 +121,14 @@ class ClaimModel {
       documents: json['documents'] != null
           ? (json['documents'] as List).map((d) => DocumentModel.fromJson(d)).toList()
           : [],
+      planName: json['planName'] ?? json['policy']?['planName'],
+      vehicleNumber: json['vehicleNumber'] ?? json['policy']?['vehicleNumber'],
+      vehicleMakeModel: json['vehicleMakeModel'] ?? json['policy']?['vehicleMakeModel'],
+      insuredDeclaredValue: (json['insuredDeclaredValue'] as num?)?.toDouble() ??
+          (json['policy']?['insuredDeclaredValue'] as num?)?.toDouble(),
+      policyStartDate: json['policyStartDate']?.toString() ?? json['policy']?['policyStartDate']?.toString(),
+      policyEndDate: json['policyEndDate']?.toString() ?? json['policy']?['policyEndDate']?.toString(),
+      policyStatus: json['policyStatus'] ?? json['policy']?['policyStatus'],
       reviewAllowed: json['reviewAllowed'] ?? true,
     );
   }

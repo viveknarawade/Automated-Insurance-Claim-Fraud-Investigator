@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/claim_service.dart';
 import '../../services/document_service.dart';
+import '../../services/policy_service.dart';
 import '../../theme/app_theme.dart';
+import 'buy_policy_screen.dart';
 import 'document_upload_sheet.dart';
 
 class SubmitClaimScreen extends StatefulWidget {
@@ -16,6 +18,7 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
   final _formKey = GlobalKey<FormState>();
   final _claimService = ClaimService();
   final _documentService = DocumentService();
+  final _policyService = PolicyService();
 
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -27,6 +30,33 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
   DateTime? _selectedDateTime;
   final List<PickedDocument> _attachedDocuments = [];
   bool _isSubmitting = false;
+  bool _hasActivePolicy = true; // assume true until check completes
+  bool _isCheckingPolicy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserPolicies();
+  }
+
+  Future<void> _checkUserPolicies() async {
+    try {
+      final policies = await _policyService.getMyPolicies();
+      if (mounted) {
+        setState(() {
+          _hasActivePolicy = policies.any((p) => p.policyStatus == 'ACTIVE');
+          _isCheckingPolicy = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _hasActivePolicy = false;
+          _isCheckingPolicy = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -137,7 +167,52 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
     );
   }
 
+  void _showNoPolicyDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppTheme.warningAmber, size: 28),
+            SizedBox(width: 10),
+            Text('No Active Insurance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: const Text(
+          'You do not have any active insurance policy. You must buy or activate an insurance policy first before submitting a claim.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
+              ).then((_) => _checkUserPolicies());
+            },
+            child: const Text('Buy Policy First', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleSubmit() async {
+    if (!_hasActivePolicy) {
+      _showNoPolicyDialog();
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -253,6 +328,68 @@ class _SubmitClaimScreenState extends State<SubmitClaimScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ── NO POLICY WARNING BANNER ────────────────────────
+                if (!_isCheckingPolicy && !_hasActivePolicy) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warningAmber.withAlpha(25),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.warningAmber.withAlpha(120)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: AppTheme.warningAmber, size: 24),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'No Active Insurance Policy',
+                                style: TextStyle(
+                                  color: AppTheme.warningAmber,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'You do not have any active insurance policy. You must buy or activate an insurance policy first before submitting a claim.',
+                          style: TextStyle(fontSize: 13, height: 1.4),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.warningAmber,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const BuyPolicyScreen()),
+                              ).then((_) => _checkUserPolicies());
+                            },
+                            icon: const Icon(Icons.shield_outlined, size: 18),
+                            label: const Text(
+                              'Buy Policy First',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // ── SECTION 1: CLAIM INFORMATION ──────────────────────
                 Text(
                   'Claim Information',

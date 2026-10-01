@@ -23,6 +23,9 @@ import com.insurancefraud.document.repository.ClaimDocumentRepo;
 import com.insurancefraud.storage.service.StorageService;
 import com.insurancefraud.entity.ClaimDocument;
 import com.insurancefraud.common.exception.FileStorageException;
+import com.insurancefraud.entity.Policy;
+import com.insurancefraud.enums.PolicyStatus;
+import com.insurancefraud.policy.repository.PolicyRepo;
 @Service
 @Slf4j
 public class AdminClaimServiceImpl implements AdminClaimService {
@@ -33,14 +36,16 @@ public class AdminClaimServiceImpl implements AdminClaimService {
     private final ClaimRepo claimRepo;
     private final ClaimDocumentRepo claimDocumentRepo;
     private final StorageService storageService;
+    private final PolicyRepo policyRepo;
 
-    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper, ClaimDocumentRepo claimDocumentRepo, StorageService storageService) {
+    public AdminClaimServiceImpl(CurrentUserService currentUserService,UserRepo userRepo,ClaimRepo claimRepo,ModelMapper mapper, ClaimDocumentRepo claimDocumentRepo, StorageService storageService, PolicyRepo policyRepo) {
         this.currentUserService = currentUserService;
         this.userRepo = userRepo;
         this.claimRepo =claimRepo;
         this.mapper =mapper;
         this.claimDocumentRepo = claimDocumentRepo;
         this.storageService = storageService;
+        this.policyRepo = policyRepo;
     }
 
     @Override
@@ -345,6 +350,22 @@ public class AdminClaimServiceImpl implements AdminClaimService {
         dto.setCustomerEmail(claim.getUser().getEmail());
         dto.setInvestigatorName(claim.getAssignedInvestigator() != null ? claim.getAssignedInvestigator().getFullName() : "Not Assigned");
         dto.setTenantCode(claim.getTenant().getTenantCode());
+
+        Policy policy = claim.getPolicy();
+        if (policy == null && claim.getUser() != null) {
+            policy = policyRepo.findFirstByUserAndPolicyStatusOrderByCreatedAtDesc(claim.getUser(), PolicyStatus.ACTIVE).orElse(null);
+        }
+        if (policy != null) {
+            dto.setPolicyNumber(policy.getPolicyNumber());
+            dto.setPlanName(policy.getPolicyPlan() != null ? policy.getPolicyPlan().getPlanName() : "Vehicle Insurance Policy");
+            dto.setVehicleNumber(policy.getVehicleNumber());
+            dto.setVehicleMakeModel(policy.getVehicleMakeModel());
+            dto.setInsuredDeclaredValue(policy.getInsuredDeclaredValue());
+            dto.setPolicyStartDate(policy.getPolicyStartDate());
+            dto.setPolicyEndDate(policy.getPolicyEndDate());
+            dto.setPolicyStatus(policy.getPolicyStatus() != null ? policy.getPolicyStatus().name() : "ACTIVE");
+        }
+
         return dto;
     }
 

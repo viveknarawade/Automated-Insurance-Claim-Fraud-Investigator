@@ -1,6 +1,7 @@
 package com.insurancefraud.policy.repository;
 
 import com.insurancefraud.entity.Policy;
+import com.insurancefraud.entity.PolicyPlan;
 import com.insurancefraud.entity.Tenant;
 import com.insurancefraud.entity.User;
 import com.insurancefraud.enums.PolicyStatus;
@@ -22,4 +23,6 @@ public interface PolicyRepo extends JpaRepository<Policy, Long> {
     List<Policy> findByTenant(Tenant tenant);
 
     Optional<Policy> findByPolicyNumber(String policyNumber);
+
+    boolean existsByUserAndPolicyPlanAndPolicyStatus(User user, PolicyPlan policyPlan, PolicyStatus policyStatus);
 }

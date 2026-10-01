@@ -60,6 +60,11 @@ public class CustomerPolicyServiceImpl implements CustomerPolicyService {
         PolicyPlan plan = policyPlanRepo.findById(requestDto.getPlanId())
                 .orElseThrow(() -> new ResourceNotFoundException("Policy Plan not found with ID: " + requestDto.getPlanId()));
 
+        // Prevent duplicate purchase of the same plan
+        if (policyRepo.existsByUserAndPolicyPlanAndPolicyStatus(user, plan, PolicyStatus.ACTIVE)) {
+            throw new IllegalStateException("You already have an active policy for this plan: " + plan.getPlanName());
+        }
+
         Policy policy = new Policy();
         policy.setTenant(tenant);
         policy.setUser(user);

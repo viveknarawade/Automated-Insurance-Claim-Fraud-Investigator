@@ -737,6 +737,16 @@ class _InvestigationDetailScreenState extends State<InvestigationDetailScreen> {
                   _DetailRow('Claimant Name', _claim!.policyHolderName ?? _claim!.customerName ?? 'N/A', labelColor, textColor),
                   _DetailRow('Claimant Email', _claim!.customerEmail ?? 'N/A', labelColor, textColor),
                   _DetailRow('Policy Number', _claim!.policyNumber, labelColor, textColor),
+                  if (_claim!.planName != null && _claim!.planName!.isNotEmpty)
+                    _DetailRow('Plan Name', _claim!.planName!, labelColor, textColor),
+                  if (_claim!.vehicleNumber != null && _claim!.vehicleNumber!.isNotEmpty)
+                    _DetailRow('Vehicle Reg', _claim!.vehicleNumber!, labelColor, textColor),
+                  if (_claim!.vehicleMakeModel != null && _claim!.vehicleMakeModel!.isNotEmpty)
+                    _DetailRow('Make / Model', _claim!.vehicleMakeModel!, labelColor, textColor),
+                  if (_claim!.insuredDeclaredValue != null && _claim!.insuredDeclaredValue! > 0)
+                    _DetailRow('Insured Value (IDV)', _inrFormat.format(_claim!.insuredDeclaredValue!), labelColor, textColor),
+                  if (_claim!.policyStartDate != null)
+                    _DetailRow('Coverage Period', '${_fmtDate(_claim!.policyStartDate)} - ${_fmtDate(_claim!.policyEndDate)}', labelColor, textColor),
                   _DetailRow('Claim Amount', _inrFormat.format(_claim!.claimAmount), labelColor, textColor),
                   _DetailRow('Category', _claim!.claimType ?? 'General', labelColor, textColor),
                   if (_claim!.incidentDate != null)

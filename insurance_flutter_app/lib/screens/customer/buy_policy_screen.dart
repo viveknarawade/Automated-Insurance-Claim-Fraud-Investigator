@@ -20,7 +20,9 @@ class _BuyPolicyScreenState extends State<BuyPolicyScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PolicyProvider>().fetchAvailablePlans();
+      final provider = context.read<PolicyProvider>();
+      provider.fetchAvailablePlans();
+      provider.fetchMyPolicies();
     });
   }
 
@@ -60,6 +62,13 @@ class _BuyPolicyScreenState extends State<BuyPolicyScreen> {
   Widget build(BuildContext context) {
     final policyProvider = context.watch<PolicyProvider>();
     final plans = policyProvider.availablePlans;
+    final myPolicies = policyProvider.myPolicies;
+
+    // Build set of already-purchased plan names to prevent re-buying
+    final purchasedPlanNames = myPolicies
+        .where((p) => p.policyStatus == 'ACTIVE')
+        .map((p) => p.planName)
+        .toSet();
 
     return Scaffold(
       appBar: AppBar(
@@ -103,28 +112,67 @@ class _BuyPolicyScreenState extends State<BuyPolicyScreen> {
                             itemBuilder: (context, index) {
                               final plan = plans[index];
                               final isSelected = _selectedPlan?.planId == plan.planId;
+                              final alreadyPurchased = purchasedPlanNames.contains(plan.planName);
                               return Card(
-                                color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.08) : null,
+                                color: alreadyPurchased
+                                    ? Colors.grey.shade100
+                                    : isSelected
+                                        ? Theme.of(context).primaryColor.withOpacity(0.08)
+                                        : null,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   side: BorderSide(
-                                    color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade300,
-                                    width: isSelected ? 2 : 1,
+                                    color: alreadyPurchased
+                                        ? Colors.grey.shade400
+                                        : isSelected
+                                            ? Theme.of(context).primaryColor
+                                            : Colors.grey.shade300,
+                                    width: isSelected && !alreadyPurchased ? 2 : 1,
                                   ),
                                 ),
                                 margin: const EdgeInsets.only(bottom: 12),
                                 child: RadioListTile<PolicyPlanModel>(
                                   value: plan,
                                   groupValue: _selectedPlan,
-                                  onChanged: (val) {
-                                    setState(() => _selectedPlan = val);
-                                  },
-                                  title: Text(
-                                    plan.planName,
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  onChanged: alreadyPurchased
+                                      ? null
+                                      : (val) {
+                                          setState(() => _selectedPlan = val);
+                                        },
+                                  title: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          plan.planName,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: alreadyPurchased ? Colors.grey : null,
+                                          ),
+                                        ),
+                                      ),
+                                      if (alreadyPurchased)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Text(
+                                            '✓ Purchased',
+                                            style: TextStyle(
+                                              color: Colors.green,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   subtitle: Text(
                                     'Max IDV: ₹ ${plan.maxIdvCoverage.toStringAsFixed(0)} • Premium: ₹ ${plan.annualPremium.toStringAsFixed(0)}/yr\n${plan.description}',
+                                    style: TextStyle(
+                                      color: alreadyPurchased ? Colors.grey : null,
+                                    ),
                                   ),
                                 ),
                               );
@@ -164,7 +212,14 @@ class _BuyPolicyScreenState extends State<BuyPolicyScreen> {
                       child: ElevatedButton(
                         onPressed: policyProvider.isLoading ? null : _submitSelection,
                         child: policyProvider.isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
                             : const Text('Confirm & Activate Policy', style: TextStyle(fontSize: 16)),
                       ),
                     ),

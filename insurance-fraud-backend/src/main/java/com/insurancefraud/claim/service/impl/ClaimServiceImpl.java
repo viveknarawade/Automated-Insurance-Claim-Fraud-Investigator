@@ -17,6 +17,9 @@ import com.insurancefraud.claim.service.ClaimService;
 import com.insurancefraud.util.PaginationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.insurancefraud.entity.Policy;
+import com.insurancefraud.enums.PolicyStatus;
+import com.insurancefraud.policy.repository.PolicyRepo;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 
@@ -33,6 +36,7 @@ public class ClaimServiceImpl implements ClaimService {
 
     private final CurrentUserServiceImpl currentUserService;
     private final ClaimRepo claimRepo;
+    private final PolicyRepo policyRepo;
     private final ModelMapper mapper;
 
 
@@ -54,10 +58,15 @@ public class ClaimServiceImpl implements ClaimService {
 
     Tenant tenant = user.getTenant();
 
+    // Verify user has an active policy before filing a claim
+    Policy activePolicy = policyRepo.findFirstByUserAndPolicyStatusOrderByCreatedAtDesc(user, PolicyStatus.ACTIVE)
+            .orElseThrow(() -> new IllegalStateException("No active insurance policy found. You must buy or activate an insurance policy before filing a claim."));
+
     Claim claim = mapper.map(requestDto, Claim.class);
 
     claim.setTenant(tenant);
     claim.setUser(user);
+    claim.setPolicy(activePolicy);
     claim.setFraudStatus(FraudStatus.PENDING_ANALYSIS);
     claim.setClaimStatus(ClaimStatus.PENDING);
     claim.setClaimNumber("TEMP-" + System.currentTimeMillis() + "-" + java.util.UUID.randomUUID().toString().substring(0, 8));
@@ -129,6 +138,25 @@ public class ClaimServiceImpl implements ClaimService {
         dto.setCustomerEmail(claim.getUser().getEmail());
         dto.setInvestigatorName(claim.getAssignedInvestigator() != null ? claim.getAssignedInvestigator().getFullName() : "Not Assigned");
         dto.setTenantCode(claim.getTenant().getTenantCode());
+
+        populatePolicyDetails(dto, claim);
         return dto;
+    }
+
+    private void populatePolicyDetails(ClaimDetailResponseDto dto, Claim claim) {
+        Policy policy = claim.getPolicy();
+        if (policy == null && claim.getUser() != null) {
+            policy = policyRepo.findFirstByUserAndPolicyStatusOrderByCreatedAtDesc(claim.getUser(), PolicyStatus.ACTIVE).orElse(null);
+        }
+        if (policy != null) {
+            dto.setPolicyNumber(policy.getPolicyNumber());
+            dto.setPlanName(policy.getPolicyPlan() != null ? policy.getPolicyPlan().getPlanName() : "Vehicle Insurance Policy");
+            dto.setVehicleNumber(policy.getVehicleNumber());
+            dto.setVehicleMakeModel(policy.getVehicleMakeModel());
+            dto.setInsuredDeclaredValue(policy.getInsuredDeclaredValue());
+            dto.setPolicyStartDate(policy.getPolicyStartDate());
+            dto.setPolicyEndDate(policy.getPolicyEndDate());
+            dto.setPolicyStatus(policy.getPolicyStatus() != null ? policy.getPolicyStatus().name() : "ACTIVE");
+        }
     }
 }

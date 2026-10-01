@@ -18,6 +18,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import com.insurancefraud.investigator.service.InvestigatorClaimService;
 
+import com.insurancefraud.entity.Policy;
+import com.insurancefraud.enums.PolicyStatus;
+import com.insurancefraud.policy.repository.PolicyRepo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -28,13 +31,15 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
 
     private final CurrentUserService currentUserService;
     private final ClaimRepo claimRepo;
-    private  final ClaimDocumentRepo claimDocumentRepo;
+    private final ClaimDocumentRepo claimDocumentRepo;
+    private final PolicyRepo policyRepo;
 
 
-    public InvestigatorClaimServiceImpl(CurrentUserService currentUserService, ClaimRepo claimRepo,ClaimDocumentRepo claimDocumentRepo) {
+    public InvestigatorClaimServiceImpl(CurrentUserService currentUserService, ClaimRepo claimRepo, ClaimDocumentRepo claimDocumentRepo, PolicyRepo policyRepo) {
         this.currentUserService = currentUserService;
         this.claimRepo = claimRepo;
-        this.claimDocumentRepo =claimDocumentRepo;
+        this.claimDocumentRepo = claimDocumentRepo;
+        this.policyRepo = policyRepo;
     }
 
 
@@ -160,6 +165,22 @@ public class InvestigatorClaimServiceImpl implements InvestigatorClaimService {
         dto.setUpdatedAt(claim.getUpdatedAt());
         dto.setReviewNotes(claim.getReviewNotes());
         dto.setCreatedAt(claim.getCreatedAt());
+
+        Policy policy = claim.getPolicy();
+        if (policy == null && claim.getUser() != null) {
+            policy = policyRepo.findFirstByUserAndPolicyStatusOrderByCreatedAtDesc(claim.getUser(), PolicyStatus.ACTIVE).orElse(null);
+        }
+        if (policy != null) {
+            dto.setPolicyNumber(policy.getPolicyNumber());
+            dto.setPlanName(policy.getPolicyPlan() != null ? policy.getPolicyPlan().getPlanName() : "Vehicle Insurance Policy");
+            dto.setVehicleNumber(policy.getVehicleNumber());
+            dto.setVehicleMakeModel(policy.getVehicleMakeModel());
+            dto.setInsuredDeclaredValue(policy.getInsuredDeclaredValue());
+            dto.setPolicyStartDate(policy.getPolicyStartDate());
+            dto.setPolicyEndDate(policy.getPolicyEndDate());
+            dto.setPolicyStatus(policy.getPolicyStatus() != null ? policy.getPolicyStatus().name() : "ACTIVE");
+        }
+
         return dto;
     }
 
