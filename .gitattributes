@@ -1,0 +1,24 @@
+# GitHub Linguist overrides
+# Ignore configuration, generated, and metadata files from language statistics
+*.sql linguist-detectable=false
+*.json linguist-detectable=false
+*.xml linguist-detectable=false
+*.yaml linguist-detectable=false
+*.yml linguist-detectable=false
+*.md linguist-documentation=true
+
+# Ignore virtual environments, caches, and build outputs
+*venv*/** linguist-vendored
+**/.venv/** linguist-vendored
+**/build/** linguist-vendored
+**/dist/** linguist-vendored
+**/target/** linguist-vendored
+**/node_modules/** linguist-vendored
+**/.dart_tool/** linguist-vendored
+**/ios/** linguist-vendored
+**/android/app/build/** linguist-vendored
+**/android/.gradle/** linguist-vendored
+
+# Ensure core project source languages are prominent
+insurance-fraud-backend/** linguist-detectable=true
+insurance_flutter_app/lib/** linguist-detectable=true

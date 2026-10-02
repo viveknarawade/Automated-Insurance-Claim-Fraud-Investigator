@@ -3,8 +3,13 @@
 node_modules/
 dist/
 **/fraudguard-ai-venv/
+*venv*/
+*.venv/
+**/.venv/
 **/__pycache__/
 *.pyc
+*.pyo
 target/
+build/
 .idea/
 .vscode/
