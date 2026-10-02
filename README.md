@@ -13,8 +13,6 @@ FraudGuard is an enterprise, multi-tenant automated insurance claim management a
 
 ## 📱 Download Android APK (Live Demo)
 
-Interviewers and recruiters can download and install the release APK directly on an Android device:
-
 👉 **[Download FraudGuard Android APK (v1.0.0)](https://github.com/viveknarawade/Automated-Insurance-Claim-Fraud-Investigator/releases/latest/download/app-release.apk)**  
 *(File size: ~56.9 MB, built with release tree-shaking and minification)*
 
